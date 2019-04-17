@@ -2,7 +2,8 @@ package model
 
 // Wal2JSONMessage represents a wal2json message object.
 type Wal2JSONMessage struct {
-	Changes []*Wal2JSONChange `json:"changes"`
+	Changes []*Wal2JSONChange `json:"change"`
+	NextLSN string            `json:"nextlsn"`
 }
 
 // Wal2JSONChange represents a changeset within a Wal2JSONMessage.
@@ -12,7 +13,7 @@ type Wal2JSONChange struct {
 	Table        string           `json:"table"`
 	ColumnNames  []string         `json:"columnnames"`
 	ColumnTypes  []string         `json:"columntypes"`
-	ColumnValues []string         `json:"columnvalues"`
+	ColumnValues []interface{}    `json:"columnvalues"`
 	OldKeys      *Wal2JSONOldKeys `json:"oldkeys"`
 }
 

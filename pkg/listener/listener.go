@@ -7,7 +7,7 @@ import (
 
 // Listener is an interface for implementing a replication listener
 type Listener interface {
-	Listen(config *pgx.ConnConfig) error
-	Changes() chan *model.Changeset
+	Dial(config *pgx.ConnConfig) error
+	ListenForChanges() (chan *model.Changeset, chan error)
 	Close() error
 }

@@ -14,18 +14,20 @@ type NotifyListener struct {
 	logger *log.Entry
 
 	changesetsCh chan *model.Changeset
+	errCh        chan error
 }
 
 // NewNotifyListener returne a new NotifyListener.
-func NewNotifyListener(connConfig *pgx.ConnConfig) Listener {
+func NewNotifyListener() Listener {
 	return &NotifyListener{
 		logger:       log.WithFields(log.Fields{"component": "listener"}),
 		changesetsCh: make(chan *model.Changeset),
+		errCh:        make(chan error),
 	}
 }
 
-// Listen connects to the database and emits changes via a channel.
-func (l *NotifyListener) Listen(connConfig *pgx.ConnConfig) error {
+// Dial connects to the source database.
+func (l *NotifyListener) Dial(connConfig *pgx.ConnConfig) error {
 	conn, err := pgx.Connect(*connConfig)
 	if err != nil {
 		log.WithError(err).Error("Failed to connect to database.")
@@ -36,6 +38,11 @@ func (l *NotifyListener) Listen(connConfig *pgx.ConnConfig) error {
 	return nil
 }
 
+// ListenForChanges returns a channel that emits database changesets.
+func (l *NotifyListener) ListenForChanges() (chan *model.Changeset, chan error) {
+	return l.changesetsCh, l.errCh
+}
+
 // Close closes the database connection.
 func (l *NotifyListener) Close() error {
 	if err := l.conn.Close(); err != nil {
@@ -44,9 +51,4 @@ func (l *NotifyListener) Close() error {
 	}
 
 	return nil
-}
-
-// Changes returns a channel that emits database changesets.
-func (l *NotifyListener) Changes() chan *model.Changeset {
-	return l.changesetsCh
 }
