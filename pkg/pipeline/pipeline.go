@@ -37,7 +37,7 @@ func wrapStageFunc(sFun StageFunc) stageFn {
 	return f
 }
 
-// StageFunc is a function for processing changesets in a Pipline Stage.
+// StageFunc is a function for processing changesets in a pipeline Stage.
 // It accepts a single argument, a Changset, and returns one of:
 //     (Changset, nil): If the stage was successful
 //     (nil, nil): If the changeset should be dropped (useful for filtering)
