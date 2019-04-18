@@ -35,7 +35,7 @@ func NewConfigFromEnv() *Config {
 	var c Config
 	err := envconfig.Process("wp", &c)
 	if err != nil {
-		log.WithError(err).Fatal("Failed to parse configuration from environment.")
+		log.WithError(err).Fatal("failed to parse configuration from environment.")
 		return nil
 	}
 

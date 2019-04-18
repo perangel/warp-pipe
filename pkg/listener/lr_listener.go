@@ -87,21 +87,18 @@ func (l *LogicalReplicationListener) Dial(connConfig *pgx.ConnConfig) error {
 }
 
 // ListenForChanges returns a channel that emits database changesets.
-func (l *LogicalReplicationListener) ListenForChanges() (chan *model.Changeset, chan error) {
-	l.logger.Infof("starting repliction for slot '%s' from LSN %s",
+func (l *LogicalReplicationListener) ListenForChanges(ctx context.Context) (chan *model.Changeset, chan error) {
+	l.logger.Infof("Starting replication for slot '%s' from LSN %s",
 		l.replSlotName,
 		pgx.FormatLSN(l.replLSN),
 	)
 
 	err := l.replConn.StartReplication(l.replSlotName, l.replLSN, -1, wal2jsonArgs...)
 	if err != nil {
-		l.logger.WithError(err).Error("failed to start replication")
-		l.errCh <- err
-		// TODO: implement
-		//l.shutdown()
+		l.logger.WithError(err).Fatal("failed to start replication")
 	}
 
-	go l.startHeartBeat()
+	go l.startHeartBeat(ctx)
 
 	// loop - listen for messages
 	go func() {
@@ -112,12 +109,11 @@ func (l *LogicalReplicationListener) ListenForChanges() (chan *model.Changeset, 
 				)
 			}
 
-			ctx := context.Background()
 			msg, err := l.replConn.WaitForReplicationMessage(ctx)
 			if err != nil {
 				if ctx.Err() != nil {
-					l.logger.Warn("context was canceled")
-					// TODO: should we bail here?
+					log.Info("shutting down...")
+					return
 				}
 				log.WithError(err).Error("encountered an error while waiting for replication message")
 				l.errCh <- err
@@ -135,7 +131,6 @@ func (l *LogicalReplicationListener) ListenForChanges() (chan *model.Changeset, 
 					l.sendStandbyStatus()
 				}
 			}
-
 		}
 	}()
 
@@ -145,23 +140,26 @@ func (l *LogicalReplicationListener) ListenForChanges() (chan *model.Changeset, 
 // Close closes the database connection.
 func (l *LogicalReplicationListener) Close() error {
 	if err := l.replConn.Close(); err != nil {
-		l.logger.WithError(err).Error("Error when closing database replication connection.")
+		l.logger.WithError(err).Error("error when closing database replication connection.")
 		return err
 	}
 
 	if err := l.conn.Close(); err != nil {
-		l.logger.WithError(err).Error("Error when closing database connection.")
+		l.logger.WithError(err).Error("error when closing database connection.")
 		return err
 	}
 
 	return nil
 }
 
-func (l *LogicalReplicationListener) startHeartBeat() {
+func (l *LogicalReplicationListener) startHeartBeat(ctx context.Context) {
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-time.Tick(time.Duration(l.connHeartbeatIntervalSeconds) * time.Second):
-			l.logger.Info("connection heartbeat")
+			l.logger.Info("sending heartbeat")
+			l.sendStandbyStatus()
 		}
 	}
 }
@@ -222,10 +220,10 @@ func (l *LogicalReplicationListener) clearReplicationSlots() error {
 			continue
 		}
 
-		l.logger.Infof("Deleting replicaiton slot %s", slotName)
+		l.logger.Infof("Deleting replication slot %s", slotName)
 		err = l.replConn.DropReplicationSlot(slotName)
 		if err != nil {
-			log.WithError(err).Error("Failed to delte replication slot", slotName)
+			log.WithError(err).Error("failed to delte replication slot", slotName)
 		}
 	}
 

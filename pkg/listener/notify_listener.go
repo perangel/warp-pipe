@@ -1,6 +1,8 @@
 package listener
 
 import (
+	"context"
+
 	"github.com/jackc/pgx"
 	"github.com/perangel/warp-pipe/pkg/model"
 	log "github.com/sirupsen/logrus"
@@ -39,7 +41,7 @@ func (l *NotifyListener) Dial(connConfig *pgx.ConnConfig) error {
 }
 
 // ListenForChanges returns a channel that emits database changesets.
-func (l *NotifyListener) ListenForChanges() (chan *model.Changeset, chan error) {
+func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *model.Changeset, chan error) {
 	return l.changesetsCh, l.errCh
 }
 

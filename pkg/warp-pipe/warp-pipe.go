@@ -1,6 +1,8 @@
 package warppipe
 
 import (
+	"context"
+
 	"github.com/jackc/pgx"
 	"github.com/perangel/warp-pipe/pkg/listener"
 	"github.com/perangel/warp-pipe/pkg/model"
@@ -10,22 +12,25 @@ import (
 // WarpPipe is a deamon that listens for database changes and transmits them
 // somewhere else.
 type WarpPipe struct {
-	logger   *log.Entry
-	listener listener.Listener
-	errCh    chan error
-	dbConfig *pgx.ConnConfig
+	dbConfig  *pgx.ConnConfig
+	listener  listener.Listener
+	changesCh chan *model.Changeset
+	errCh     chan error
+	logger    *log.Entry
+}
+
+func initListener(lstType ListenerType) listener.Listener {
+	switch lstType {
+	case ListenerTypeNotify:
+		return listener.NewNotifyListener()
+	case ListenerTypeLogicalReplication:
+		return listener.NewLogicalReplicationListener()
+	}
+	return nil
 }
 
 // NewWarpPipe initializes and returns a new WarpPipe.
 func NewWarpPipe(config *Config) *WarpPipe {
-	var lstn listener.Listener
-	switch config.ListenerType {
-	case ListenerTypeNotify:
-		lstn = listener.NewNotifyListener()
-	case ListenerTypeLogicalReplication:
-		lstn = listener.NewLogicalReplicationListener()
-	}
-
 	dbConfig := &pgx.ConnConfig{
 		Host:     config.DBHost,
 		Port:     config.DBPort,
@@ -36,23 +41,23 @@ func NewWarpPipe(config *Config) *WarpPipe {
 
 	return &WarpPipe{
 		dbConfig: dbConfig,
-		listener: lstn,
-		logger: log.WithFields(log.Fields{
-			"component": "warp_pipe",
-		}),
+		listener: initListener(config.ListenerType),
+		logger:   log.WithFields(log.Fields{"component": "warp_pipe"}),
 	}
 }
 
-// ListenForChanges starts the listener and returns two channels, one for changesets
+// Open starts the WarpPipe listener and returns two channels, one for changesets
 // and another for errors.
-func (w *WarpPipe) ListenForChanges() (chan *model.Changeset, chan error) {
+func (w *WarpPipe) Open() error {
 	w.errCh = make(chan error)
-	err := w.listener.Listen(w.dbConfig)
-	if err != nil {
-		w.errCh <- err
-	}
+	w.changesCh = make(chan *model.Changeset)
 
-	return w.listener.Changes(), w.errCh
+	err := w.listener.Dial(w.dbConfig)
+	return err
+}
+
+func (w *WarpPipe) ListenForChanges(ctx context.Context) (<-chan *model.Changeset, <-chan error) {
+	return w.listener.ListenForChanges(ctx)
 }
 
 // Close will close the listener and try to gracefully shutdown the WarpPipe.
