@@ -88,7 +88,7 @@ RETURNS TRIGGER AS $$
             );
             RETURN NEW;
         ELSE
-            RAISE WARNING '[WARP_PIPE.ON_MODIFY()] - Other action occurred: %, at %',TG_OP,now();
+            RAISE WARNING '[WARP_PIPE.ON_MODIFY()] - Other action occurred: %, at %',TG_OP,NOW();
             RETURN NULL;
         END IF;
 
