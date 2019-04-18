@@ -8,6 +8,7 @@ import (
 
 type stageFn func(context.Context, <-chan *model.Changeset, chan error) <-chan *model.Changeset
 
+// wrapStageFunc wraps a StageFunc and returns a stageFn.
 func wrapStageFunc(sFun StageFunc) stageFn {
 	f := func(ctx context.Context, inCh <-chan *model.Changeset, errCh chan error) <-chan *model.Changeset {
 		outCh := make(chan *model.Changeset)
@@ -56,6 +57,7 @@ type Pipeline struct {
 	errCh  chan error
 }
 
+// NewPipeline returns a new Pipeline.
 func NewPipeline() *Pipeline {
 	return &Pipeline{
 		Stages: []*Stage{},
@@ -64,6 +66,7 @@ func NewPipeline() *Pipeline {
 	}
 }
 
+// AddStage adds a new Stage to the pipeline
 func (p *Pipeline) AddStage(name string, fn StageFunc) {
 	p.Stages = append(p.Stages, &Stage{
 		Name: name,
@@ -71,6 +74,7 @@ func (p *Pipeline) AddStage(name string, fn StageFunc) {
 	})
 }
 
+// Start starts the pipeline, consuming off of a source chan that emits *model.Changeset.
 func (p *Pipeline) Start(ctx context.Context, sourceCh <-chan *model.Changeset) (<-chan *model.Changeset, <-chan error) {
 	initStage := p.Stages[0]
 	outCh := initStage.Fn(ctx, sourceCh, p.errCh)
