@@ -9,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// WarpPipe is a deamon that listens for database changes and transmits them
+// WarpPipe is a daemon that listens for database changes and transmits them
 // somewhere else.
 type WarpPipe struct {
 	dbConfig  *pgx.ConnConfig
