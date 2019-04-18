@@ -24,25 +24,24 @@ var (
 // LogicalReplicationListener is a Listener that uses logical replication slots
 // to listen for changesets.
 type LogicalReplicationListener struct {
-	conn         *pgx.Conn
-	replConn     *pgx.ReplicationConn
-	replSlotName string
-	replLSN      uint64
-	replSnapshot string
-	logger       *log.Entry
-
+	conn                         *pgx.Conn
+	replConn                     *pgx.ReplicationConn
+	replSlotName                 string
+	replLSN                      uint64
+	replSnapshot                 string
 	connHeartbeatIntervalSeconds int
-
-	changesetsCh chan *model.Changeset
-	errCh        chan error
+	changesetsCh                 chan *model.Changeset
+	errCh                        chan error
+	logger                       *log.Entry
 }
 
 // NewLogicalReplicationListener returns a new LogicalReplicationListener.
 func NewLogicalReplicationListener() Listener {
 	return &LogicalReplicationListener{
-		logger:       log.WithFields(log.Fields{"component": "listener"}),
-		changesetsCh: make(chan *model.Changeset),
-		errCh:        make(chan error),
+		logger:                       log.WithFields(log.Fields{"component": "listener"}),
+		changesetsCh:                 make(chan *model.Changeset),
+		errCh:                        make(chan error),
+		connHeartbeatIntervalSeconds: 10, // TODO: make configurable
 	}
 }
 
@@ -173,11 +172,39 @@ func (l *LogicalReplicationListener) processMessage(msg *pgx.ReplicationMessage)
 	err := json.Unmarshal(walMsgRaw, &w2jmsg)
 	if err != nil {
 		l.logger.WithError(err).Error("failed to parse wal2json message")
-		l.errCh <- fmt.Errorf("faield to parse wal2json: %v", err)
+		l.errCh <- fmt.Errorf("failed to parse wal2json: %v", err)
 	}
 
-	//l.logger.Infof("received message: %s", string(walMsgRaw))
-	// TODO: transform message to changeset and emit on changeset channel
+	for _, change := range w2jmsg.Changes {
+		cs := &model.Changeset{
+			Kind:   change.Kind.AsChangesetKind(),
+			Schema: change.Schema,
+			Table:  change.Table,
+		}
+
+		newColValues := make(map[string]*model.ChangesetColumn, len(change.ColumnValues))
+		for i, name := range change.ColumnNames {
+			newColValues[name] = &model.ChangesetColumn{
+				Type:  change.ColumnTypes[i],
+				Value: change.ColumnValues[i],
+			}
+		}
+		cs.NewValues = newColValues
+
+		if change.OldKeys != nil {
+			oldColValues := make(map[string]*model.ChangesetColumn, len(change.OldKeys.KeyValues))
+			for i, name := range change.OldKeys.KeyNames {
+				oldColValues[name] = &model.ChangesetColumn{
+					Type:  change.OldKeys.KeyTypes[i],
+					Value: change.OldKeys.KeyValues[i],
+				}
+			}
+			cs.OldValues = oldColValues
+		}
+
+		//l.logger.Infof("received changeset: %+v", (cs))
+		l.changesetsCh <- cs
+	}
 }
 
 func (l *LogicalReplicationListener) clearReplicationSlots() error {
