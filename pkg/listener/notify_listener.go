@@ -20,7 +20,7 @@ type NotifyListener struct {
 }
 
 // NewNotifyListener returne a new NotifyListener.
-func NewNotifyListener() Listener {
+func NewNotifyListener() *NotifyListener {
 	return &NotifyListener{
 		logger:       log.WithFields(log.Fields{"component": "listener"}),
 		changesetsCh: make(chan *model.Changeset),

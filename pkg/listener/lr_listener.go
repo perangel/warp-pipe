@@ -36,7 +36,7 @@ type LogicalReplicationListener struct {
 }
 
 // NewLogicalReplicationListener returns a new LogicalReplicationListener.
-func NewLogicalReplicationListener() Listener {
+func NewLogicalReplicationListener() *LogicalReplicationListener {
 	return &LogicalReplicationListener{
 		logger:                       log.WithFields(log.Fields{"component": "listener"}),
 		changesetsCh:                 make(chan *model.Changeset),
