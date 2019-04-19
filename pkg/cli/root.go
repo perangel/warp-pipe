@@ -106,11 +106,15 @@ func parseConfig() *warppipe.Config {
 }
 
 func init() {
+	WarpPipeCmd.PersistentFlags().StringVarP(&dbHost, "db-host", "H", "", "database host")
+	WarpPipeCmd.PersistentFlags().Int16VarP(&dbPort, "db-port", "p", 0, "database port")
+	WarpPipeCmd.PersistentFlags().StringVarP(&dbName, "db-name", "d", "", "database name")
+	WarpPipeCmd.PersistentFlags().StringVarP(&dbUser, "db-user", "U", "", "database user")
+	WarpPipeCmd.PersistentFlags().StringVarP(&dbPass, "db-pass", "P", "", "database password")
 	WarpPipeCmd.Flags().StringVarP(&wpMode, "mode", "M", "lr", "replication mode")
-	WarpPipeCmd.Flags().StringVarP(&dbHost, "db-host", "H", "", "database host")
-	WarpPipeCmd.Flags().Int16VarP(&dbPort, "db-port", "p", 0, "database port")
-	WarpPipeCmd.Flags().StringVarP(&dbName, "db-name", "d", "", "database name")
-	WarpPipeCmd.Flags().StringVarP(&dbUser, "db-user", "U", "", "database user")
-	WarpPipeCmd.Flags().StringVarP(&dbPass, "db-pass", "P", "", "database password")
 	WarpPipeCmd.Flags().SortFlags = false
+
+	WarpPipeCmd.AddCommand(
+		setupDBCmd,
+	)
 }
