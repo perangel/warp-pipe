@@ -31,15 +31,6 @@ func SetupDatabase(conn *pgx.Conn, schema string, excludeTables []string) error 
 		return errTransactionBegin
 	}
 
-	defer func() {
-		if err = tx.Commit(); err != nil {
-			log.WithError(err).Error(errTransactionCommit.Error())
-			if err = tx.Rollback(); err != nil {
-				log.WithError(err).Error(errTransactionRollback.Error())
-			}
-		}
-	}()
-
 	err = createSchema(tx)
 	if err != nil {
 		return errCreateSchema
@@ -66,6 +57,11 @@ func SetupDatabase(conn *pgx.Conn, schema string, excludeTables []string) error 
 		if err != nil {
 			return errRegisterTrigger
 		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		log.WithError(err).Error(errTransactionCommit.Error())
+		return errTransactionCommit
 	}
 
 	return nil

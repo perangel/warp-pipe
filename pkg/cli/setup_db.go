@@ -38,7 +38,7 @@ For more details see: https://github.com/perangel/warp-pipe/docs/setup_database.
 
 		conn, err := pgx.Connect(*dbConfig)
 		if err != nil {
-			log.WithError(err).Fatal("failed to connect to database")
+			log.WithError(err).Fatal("unable to connect to database")
 		}
 
 		err = db.SetupDatabase(conn, setupDBSchema, setupDBIgnoreTables)
