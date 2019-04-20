@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/perangel/warp-pipe/pkg/warp-pipe"
 	log "github.com/sirupsen/logrus"
@@ -49,8 +48,6 @@ var WarpPipeCmd = &cobra.Command{
 					log.Printf("%+v\n", change)
 				case err := <-errors:
 					log.Error(err)
-				case <-time.Tick(100 * time.Millisecond):
-					continue
 				}
 			}
 		}()
