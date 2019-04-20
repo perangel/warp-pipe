@@ -1,0 +1,20 @@
+<!html>
+<head>
+    <title>Warp Pipe: Demo</title>
+</head>
+<body>
+    <center>
+        <h3>DB Changesets</h3>
+        <pre id="changes"></pre>
+    </center>
+
+    <script>
+        var ws = new WebSocket("ws://" + window.location.host + "/ws");
+        var changes = document.getElementById("changes");
+
+        ws.onmessage = function(msg) {
+            changes.innerText += msg.data + "\n";
+        };
+    </script>
+</body>
+</html>
