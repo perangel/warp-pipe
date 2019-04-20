@@ -38,7 +38,7 @@ type Wal2JSONChange struct {
 
 // Wal2JSONOldKeys represents the `oldkeys` object in a Wal2JSON change
 type Wal2JSONOldKeys struct {
-	KeyNames  []string `json:"keynames"`
-	KeyTypes  []string `json:"keytypes"`
-	KeyValues []string `json:"keyvalues"`
+	KeyNames  []string      `json:"keynames"`
+	KeyTypes  []string      `json:"keytypes"`
+	KeyValues []interface{} `json:"keyvalues"`
 }

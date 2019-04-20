@@ -180,21 +180,23 @@ func (l *LogicalReplicationListener) processMessage(msg *pgx.ReplicationMessage)
 			Table:  change.Table,
 		}
 
-		newColValues := make(map[string]*model.ChangesetColumn, len(change.ColumnValues))
+		newColValues := make([]*model.ChangesetColumn, len(change.ColumnValues))
 		for i, name := range change.ColumnNames {
-			newColValues[name] = &model.ChangesetColumn{
-				Type:  change.ColumnTypes[i],
-				Value: change.ColumnValues[i],
+			newColValues[i] = &model.ChangesetColumn{
+				Column: name,
+				Value:  change.ColumnValues[i],
+				Type:   change.ColumnTypes[i],
 			}
 		}
 		cs.NewValues = newColValues
 
 		if change.OldKeys != nil {
-			oldColValues := make(map[string]*model.ChangesetColumn, len(change.OldKeys.KeyValues))
+			oldColValues := make([]*model.ChangesetColumn, len(change.OldKeys.KeyValues))
 			for i, name := range change.OldKeys.KeyNames {
-				oldColValues[name] = &model.ChangesetColumn{
-					Type:  change.OldKeys.KeyTypes[i],
-					Value: change.OldKeys.KeyValues[i],
+				oldColValues[i] = &model.ChangesetColumn{
+					Column: name,
+					Value:  change.OldKeys.KeyValues[i],
+					Type:   change.OldKeys.KeyTypes[i],
 				}
 			}
 			cs.OldValues = oldColValues
