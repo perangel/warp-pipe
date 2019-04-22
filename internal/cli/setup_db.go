@@ -2,8 +2,7 @@ package cli
 
 import (
 	"github.com/jackc/pgx"
-	"github.com/perangel/warp-pipe/pkg/db"
-	log "github.com/sirupsen/logrus"
+	"github.com/perangel/warp-pipe/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -27,28 +26,35 @@ the changesets.
 
 For more details see: https://github.com/perangel/warp-pipe/docs/setup_database.md
 	`,
-	Run: func(cmd *cobra.Command, _ []string) {
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		config, err := parseConfig()
+		if err != nil {
+			return err
+		}
+
 		dbConfig := &pgx.ConnConfig{
-			Host:     dbHost,
-			Port:     uint16(dbPort),
-			User:     dbUser,
-			Password: dbPass,
-			Database: dbName,
+			Host:     config.ConnConfig.DBHost,
+			Port:     uint16(config.ConnConfig.DBPort),
+			User:     config.ConnConfig.DBUser,
+			Password: config.ConnConfig.DBPass,
+			Database: config.ConnConfig.DBName,
 		}
 
 		conn, err := pgx.Connect(*dbConfig)
 		if err != nil {
-			log.WithError(err).Fatal("unable to connect to database")
+			return err
 		}
 
 		err = db.SetupDatabase(conn, setupDBSchema, setupDBIgnoreTables)
 		if err != nil {
-			log.WithError(err).Fatal("failed to setup database for replication")
+			return err
 		}
+
+		return nil
 	},
 }
 
 func init() {
-	setupDBCmd.Flags().StringSliceVarP(&setupDBIgnoreTables, "ignore-tables", "I", nil, "tables to exclude from replication")
-	setupDBCmd.Flags().StringVarP(&setupDBSchema, "schema", "s", "public", "schema to setup for replication")
+	setupDBCmd.Flags().StringSliceVarP(&setupDBIgnoreTables, "ignore-tables", "i", nil, "tables to exclude from replication setup")
+	setupDBCmd.Flags().StringVarP(&setupDBSchema, "schema", "S", "public", "schema to setup for replication")
 }

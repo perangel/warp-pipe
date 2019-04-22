@@ -11,9 +11,11 @@ import (
 // Errors when setting up the database.
 var (
 	errCreateSchema        = errors.New("error creating `warp_pipe` schema")
+	errDuplicateSchema     = errors.New("`warp_pipe` schema already exists")
 	errCreateTable         = errors.New("error creating `warp_pipe.changesets` table")
+	errDuplicateTable      = errors.New("`warp_pipe.changesets` table already exists")
 	errCreateTriggerFunc   = errors.New("error creating `on_modify` trigger function")
-	errRegisterTrigger     = errors.New("error `on_modify` trigger on table")
+	errRegisterTrigger     = errors.New("error registering `on_modify` trigger on table")
 	errTransactionBegin    = errors.New("error starting new transaction")
 	errTransactionCommit   = errors.New("error committing transaction")
 	errTransactionRollback = errors.New("error rolling back transaction")
@@ -33,11 +35,21 @@ func SetupDatabase(conn *pgx.Conn, schema string, excludeTables []string) error 
 
 	err = createSchema(tx)
 	if err != nil {
+		// https://www.postgresql.org/docs/10/errcodes-appendix.html
+		pgErr, ok := err.(pgx.PgError)
+		if ok && pgErr.Code == "42P06" {
+			return errDuplicateSchema
+		}
 		return errCreateSchema
 	}
 
 	err = createChangesetsTable(tx)
 	if err != nil {
+		// https://www.postgresql.org/docs/10/errcodes-appendix.html
+		pgErr, ok := err.(pgx.PgError)
+		if ok && pgErr.Code == "42P07" {
+			return errDuplicateTable
+		}
 		return errCreateTable
 	}
 

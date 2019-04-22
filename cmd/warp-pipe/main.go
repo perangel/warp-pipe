@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/perangel/warp-pipe/pkg/cli"
+	"github.com/perangel/warp-pipe/internal/cli"
 )
 
 func main() {
