@@ -42,7 +42,7 @@ go install github.com/perangel/warp-pipe/cmd/warp-pipe
 
 ### Usage
 
-```shell
+```text
 Run a warp-pipe and stream changes from a Postgres database.
 
 Usage:
@@ -74,7 +74,7 @@ Use "warp-pipe [command] --help" for more information about a command.
 ------|----------------------|------------
 --log-level, -l | LOG_LEVEL | Sets the logging level
 --replication-mode, -M | REPLICATION_MODE | Sets the replication mode to one of `queue` or `lr` (logical replication) (see: [requirements](#requirements))
---ignore-tables, -i | IGNORE_TABLES | Specify table to exclude from replication.
+--ignore-tables, -i | IGNORE_TABLES | Specify tables to exclude from replication.
 --db-schema, -S | DB_SCHEMA | The database schema to replicate.
 --db-host, -H | DB_HOST | The database host.
 --db-port, -p | DB_PORT | The database port.
