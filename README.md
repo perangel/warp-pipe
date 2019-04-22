@@ -36,12 +36,48 @@ In `queue` mode, `warp-pipe` creates a set of `changesets` tables in your databa
 
 ### Installation
 
-TODO
+```shell
+go install github.com/perangel/warp-pipe/cmd/warp-pipe
+```
 
 ### Usage
 
-TODO
+```shell
+Run a warp-pipe and stream changes from a Postgres database.
+
+Usage:
+  warp-pipe [flags]
+  warp-pipe [command]
+
+Available Commands:
+  help        Help about any command
+  setup-db    Setup the source database
+
+Flags:
+  -S, --db-schema string          database schema to replicate (default "public")
+  -M, --replication-mode string   replication mode (default "lr")
+  -i, --ignore-tables strings     tables to ignore during replication
+  -H, --db-host string            database host
+  -d, --db-name string            database name
+  -P, --db-pass string            database password
+  -p, --db-port int16             database port
+  -U, --db-user string            database user
+  -L, --log-level string          log level (default "info")
+  -h, --help                      help for warp-pipe
+
+Use "warp-pipe [command] --help" for more information about a command.
+```
 
 ### Configuration
 
-TODO
+ Flag | Environment Variable | Description
+------|----------------------|------------
+--log-level, -l | LOG_LEVEL | Sets the logging level
+--replication-mode, -M | REPLICATION_MODE | Sets the replication mode to one of `queue` or `lr` (logical replication) (see: [requirements](#requirements))
+--ignore-tables, -i | IGNORE_TABLES | Specify table to exclude from replication.
+--db-schema, -S | DB_SCHEMA | The database schema to replicate.
+--db-host, -H | DB_HOST | The database host.
+--db-port, -p | DB_PORT | The database port.
+--db-user, -U | DB_USER | The database user.
+--db-pass, -P | DB_PASS | The database password.
+--db-name, -d | DB_NAME | The database name.
