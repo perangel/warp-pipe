@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/jackc/pgx"
-	"github.com/perangel/warp-pipe/internal/db"
 	"github.com/perangel/warp-pipe/internal/listener"
+	"github.com/perangel/warp-pipe/pkg/config"
 	"github.com/perangel/warp-pipe/pkg/model"
 	log "github.com/sirupsen/logrus"
 )
@@ -24,14 +24,14 @@ type WarpPipe struct {
 }
 
 // NewWarpPipe initializes and returns a new WarpPipe.
-func NewWarpPipe(connCfg *db.ConnConfig, opts ...Option) *WarpPipe {
+func NewWarpPipe(dbConfig *config.DBConfig, opts ...Option) *WarpPipe {
 	w := &WarpPipe{
 		dbConfig: &pgx.ConnConfig{
-			Host:     connCfg.DBHost,
-			Port:     connCfg.DBPort,
-			User:     connCfg.DBUser,
-			Password: connCfg.DBPass,
-			Database: connCfg.DBName,
+			Host:     dbConfig.DBHost,
+			Port:     dbConfig.DBPort,
+			User:     dbConfig.DBUser,
+			Password: dbConfig.DBPass,
+			Database: dbConfig.DBName,
 		},
 		logger: log.New(),
 	}

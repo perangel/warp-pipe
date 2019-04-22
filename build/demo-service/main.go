@@ -6,7 +6,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/perangel/warp-pipe/pkg/warp-pipe"
+	"github.com/perangel/warp-pipe/pkg/config"
+	warppipe "github.com/perangel/warp-pipe/pkg/warp-pipe"
 
 	"gopkg.in/olahol/melody.v1"
 )
@@ -30,10 +31,13 @@ func main() {
 	http.HandleFunc("/ws", WebSocketHandler)
 	M.HandleMessage(WebSocketMessageHandler)
 
-	wpConfig := warppipe.NewConfigFromEnv()
-	wpConfig.ListenerType = warppipe.ListenerTypeLogicalReplication
-	wp := warppipe.NewWarpPipe(wpConfig)
-	err := wp.Open()
+	cfg, err := config.NewConfigFromEnv()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	wp := warppipe.NewWarpPipe(&cfg.DBConfig)
+	err = wp.Open()
 	if err != nil {
 		log.Fatal(err)
 	}

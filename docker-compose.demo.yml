@@ -53,6 +53,13 @@ services:
       - DB_USER=demo
       - DB_PASS=secret
       - DB_NAME=demo
+    entrypoint: |
+      sh -c '
+      until nc -w 1 -z source_db 5432; do
+        echo "Waiting for db... sleeping"
+        sleep 2
+      done
+      warp-pipe-demo'
     ports:
       - '8080:8080'
     depends_on:

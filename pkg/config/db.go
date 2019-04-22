@@ -1,7 +1,7 @@
-package db
+package config
 
-// ConnConfig stores database connection settigs.
-type ConnConfig struct {
+// DBConfig stores database connection settigs.
+type DBConfig struct {
 	DBHost string `envconfig:"DB_HOST"`
 	DBPort uint16 `envconfig:"DB_PORT" default:"5432"`
 	DBUser string `envconfig:"DB_USER"`

@@ -1,36 +1,15 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/kelseyhightower/envconfig"
-	"github.com/perangel/warp-pipe/internal/db"
+	"github.com/perangel/warp-pipe/pkg/config"
 	warppipe "github.com/perangel/warp-pipe/pkg/warp-pipe"
 )
 
-// Config stores configuration for the application.
-type Config struct {
-	db.ConnConfig
-	DBSchema        string   `envconfig:"DB_SCHEMA" default:"public"`
-	ReplicationMode string   `envconfig:"REPLICATION_MODE" default:"lr"`
-	IgnoreTables    []string `envconfig:"IGNORE_TABLES"`
-	LogLevel        string   `envconfig:"LOG_LEVEL" default:"info"`
-}
-
-// NewConfigFromEnv initializes and returns a new Config with values read from the environment.
-func NewConfigFromEnv() (*Config, error) {
-	var c Config
-	err := envconfig.Process("wp", &c)
-	if err != nil {
-		return nil, errors.New("failed to parse configuration from environment")
-	}
-	return &c, nil
-}
-
-func parseConfig() (*Config, error) {
-	config, err := NewConfigFromEnv()
+func parseConfig() (*config.Config, error) {
+	config, err := config.NewConfigFromEnv()
 	if err != nil {
 		return nil, err
 	}
