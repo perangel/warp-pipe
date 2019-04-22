@@ -33,11 +33,11 @@ For more details see: https://github.com/perangel/warp-pipe/docs/setup_database.
 		}
 
 		dbConfig := &pgx.ConnConfig{
-			Host:     config.ConnConfig.DBHost,
-			Port:     uint16(config.ConnConfig.DBPort),
-			User:     config.ConnConfig.DBUser,
-			Password: config.ConnConfig.DBPass,
-			Database: config.ConnConfig.DBName,
+			Host:     config.DBConfig.DBHost,
+			Port:     uint16(config.DBConfig.DBPort),
+			User:     config.DBConfig.DBUser,
+			Password: config.DBConfig.DBPass,
+			Database: config.DBConfig.DBName,
 		}
 
 		conn, err := pgx.Connect(*dbConfig)

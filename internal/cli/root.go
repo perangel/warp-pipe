@@ -69,7 +69,7 @@ var WarpPipeCmd = &cobra.Command{
 		}
 
 		wp := warppipe.NewWarpPipe(
-			&config.ConnConfig,
+			&config.DBConfig,
 			warppipe.Mode(replMode),
 			warppipe.DatabaseSchema(dbSchema),
 			warppipe.IgnoreTables(ignoreTables),
