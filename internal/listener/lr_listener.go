@@ -18,7 +18,11 @@ const (
 )
 
 var (
-	wal2jsonArgs = []string{"\"include-lsn\" 'on'", "\"pretty-print\" 'off'"}
+	defaultWal2jsonArgs = []string{
+		"\"include-lsn\" 'on'",
+		"\"pretty-print\" 'off'",
+		"\"include-timestamp\" 'on'",
+	}
 )
 
 // LogicalReplicationListener is a Listener that uses logical replication slots
@@ -29,6 +33,7 @@ type LogicalReplicationListener struct {
 	replSlotName                 string
 	replLSN                      uint64
 	replSnapshot                 string
+	wal2jsonArgs                 []string
 	connHeartbeatIntervalSeconds int
 	changesetsCh                 chan *model.Changeset
 	errCh                        chan error
@@ -42,6 +47,7 @@ func NewLogicalReplicationListener() *LogicalReplicationListener {
 		changesetsCh:                 make(chan *model.Changeset),
 		errCh:                        make(chan error),
 		connHeartbeatIntervalSeconds: 10, // TODO: make configurable
+		wal2jsonArgs:                 defaultWal2jsonArgs,
 	}
 }
 
@@ -93,7 +99,7 @@ func (l *LogicalReplicationListener) ListenForChanges(ctx context.Context) (chan
 		pgx.FormatLSN(l.replLSN),
 	)
 
-	err := l.replConn.StartReplication(l.replSlotName, l.replLSN, -1, wal2jsonArgs...)
+	err := l.replConn.StartReplication(l.replSlotName, l.replLSN, -1, l.wal2jsonArgs...)
 	if err != nil {
 		l.logger.WithError(err).Fatal("failed to start replication")
 	}
