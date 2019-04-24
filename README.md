@@ -57,16 +57,17 @@ Available Commands:
   setup-db    Setup the source database
 
 Flags:
-  -S, --db-schema string          database schema to replicate (default "public")
-  -M, --replication-mode string   replication mode (default "lr")
-  -i, --ignore-tables strings     tables to ignore during replication
-  -H, --db-host string            database host
-  -d, --db-name string            database name
-  -P, --db-pass string            database password
-  -p, --db-port int16             database port
-  -U, --db-user string            database user
-  -L, --log-level string          log level (default "info")
-  -h, --help                      help for warp-pipe
+  -S, --db-schema string           database schema to replicate (default "public")
+  -M, --replication-mode string    replication mode (default "lr")
+  -i, --ignore-tables strings      tables to ignore during replication
+  -w, --whitelist-tables strings   tables to include during replication
+  -H, --db-host string             database host
+  -d, --db-name string             database name
+  -P, --db-pass string             database password
+  -p, --db-port int16              database port
+  -U, --db-user string             database user
+  -L, --log-level string           log level (default "info")
+  -h, --help                       help for warp-pipe
 
 Use "warp-pipe [command] --help" for more information about a command.
 ```
@@ -78,6 +79,7 @@ Use "warp-pipe [command] --help" for more information about a command.
 --log-level, -l | LOG_LEVEL | Sets the logging level
 --replication-mode, -M | REPLICATION_MODE | Sets the replication mode to one of `queue` or `lr` (logical replication) (see: [requirements](#requirements))
 --ignore-tables, -i | IGNORE_TABLES | Specify tables to exclude from replication.
+--whitelist-tables, -w | WHITELIST_TABLES | Specify tables to include during replication.
 --db-schema, -S | DB_SCHEMA | The database schema to replicate.
 --db-host, -H | DB_HOST | The database host.
 --db-port, -p | DB_PORT | The database port.
