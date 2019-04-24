@@ -228,6 +228,8 @@ func (l *LogicalReplicationListener) clearReplicationSlots() error {
 			continue
 		}
 
+		// TODO: Handle re-using the same replication slot
+
 		l.logger.Infof("Deleting replication slot %s", slotName)
 		err = l.replConn.DropReplicationSlot(slotName)
 		if err != nil {
