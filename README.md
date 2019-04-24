@@ -2,7 +2,8 @@
 
 **NOTE:** NOT FOR PRODUCTION USE, THIS IS A WORK IN PROGRESS
 
-`warp-pipe` is a tool for streaming updates from Postgres.
+`warp-pipe` is a tool for streaming updates from Postgres. It uses either logical
+replication or an audit table to capture changes to your data.
 
 ## How does it work
 
@@ -32,7 +33,7 @@ In `LR` mode, `warp-pipe` will connect to a replication slot on your database us
 
 * Postgres >= 9.4
 
-In `queue` mode, `warp-pipe` creates a set of `changesets` tables in your database to track changes. A `trigger` is registered that will notify a listener (via `NOTIFY/LISTEN`) when there are new changes to be read from the table.
+In `queue` mode, `warp-pipe` creates a new schema (`warp_pipe`) with a `changesets` tables in your database to track modifications on your schema's tables. A `trigger` is registered with all configured tables to notify (via `NOTIFY/LISTEN`) when there are new changes to be read.
 
 ### Installation
 
@@ -41,6 +42,8 @@ go install github.com/perangel/warp-pipe/cmd/warp-pipe
 ```
 
 ### Usage
+
+**TODO:** Using as a library vs standalone
 
 ```text
 Run a warp-pipe and stream changes from a Postgres database.
