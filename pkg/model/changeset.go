@@ -25,7 +25,6 @@ func ParseChangesetKind(kind string) ChangesetKind {
 		// TODO: should this error?
 		return ""
 	}
-
 }
 
 // Changeset represents a changeset for a record on a Postgres table.
