@@ -2,9 +2,14 @@ package store
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx"
+)
+
+var (
+	errEventNotFound = errors.New("event not found")
 )
 
 // Event represents an entry in the events store.
@@ -21,6 +26,7 @@ type Event struct {
 
 // EventStore is the interface for providing access to events storage.
 type EventStore interface {
+	GetByID(ctx context.Context, eventID int64) (*Event, error)
 	GetSinceID(ctx context.Context, eventID int64, limit int) ([]*Event, error)
 	GetSinceTimestamp(ctx context.Context, since time.Time, limit int) ([]*Event, error)
 	DeleteBeforeID(ctx context.Context, eventID int64) error
@@ -53,6 +59,19 @@ func (s *ChangesetStore) scanRow(rows *pgx.Rows) (*Event, error) {
 	return &evt, err
 }
 
+func (s *ChangesetStore) get(id int64) (*Event, error) {
+	events, err := s.query("SELECT * FROM warp_pipe.changesets WHERE id = $1", id)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(events) == 0 {
+		return nil, errEventNotFound
+	}
+
+	return events[0], nil
+}
+
 func (s *ChangesetStore) query(sql string, args ...interface{}) ([]*Event, error) {
 	rows, err := s.conn.Query(sql, args...)
 	if err != nil {
@@ -78,8 +97,12 @@ func (s *ChangesetStore) query(sql string, args ...interface{}) ([]*Event, error
 }
 
 func (s *ChangesetStore) exec(sql string, args ...interface{}) error {
-
 	return nil
+}
+
+// GetByID gets an event by ID.
+func (s *ChangesetStore) GetByID(ctx context.Context, eventID int64) (*Event, error) {
+	return s.get(eventID)
 }
 
 // GetSinceID returns all events after a given ID.
