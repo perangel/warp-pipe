@@ -8,7 +8,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Errors when setting up the database.
 var (
 	errCreateSchema        = errors.New("error creating `warp_pipe` schema")
 	errDuplicateSchema     = errors.New("`warp_pipe` schema already exists")
@@ -21,13 +20,23 @@ var (
 	errTransactionRollback = errors.New("error rolling back transaction")
 )
 
-// SetupDatabase prepares the database for capturing changesets.
+// Teardown removes the `warp_pipe` schema and all associated tables and functions.
+func Teardown(conn *pgx.Conn) error {
+	_, err := conn.Exec("DROP SCHEMA warp_pipe CASCADE")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Prepare prepares the database for capturing changesets.
 // This will setup:
 //     - new `warp_pipe` schema
 //     - new `changesets` table in the `warp_pipe` schema
 //     - new TRIGGER function to be fired AFTER an INSERT, UPDATE, or DELETE on a table
 //     - registers the trigger with all configured tables in the source schema
-func SetupDatabase(conn *pgx.Conn, schema string, excludeTables []string) error {
+func Prepare(conn *pgx.Conn, schema string, excludeTables []string) error {
 	tx, err := conn.Begin()
 	if err != nil {
 		return errTransactionBegin
@@ -107,7 +116,7 @@ func createChangesetsTable(tx *pgx.Tx) error {
 			schema_name TEXT NOT NULL,
 			table_name TEXT NOT NULL,
 			relid OID NOT NULL,
-			new_values JSON NOT NULL,
+			new_values JSON,
 			old_values JSON
 		)
 	`)
@@ -209,7 +218,9 @@ func createTriggerFunc(tx *pgx.Tx) error {
 					RAISE WARNING '[WARP_PIPE.ON_MODIFY()] - Other action occurred: %, at %',TG_OP,NOW();
 					RETURN NULL;
 				END IF;
-		
+	
+			PERFORM pg_notify('warp_pipe_new_changeset'::text, current_timestamp);
+
 			EXCEPTION
 				WHEN data_exception THEN
 					RAISE WARNING '[WARP_PIPE.ON_MODIFY()] - UDF ERROR [DATA EXCEPTION] - SQLSTATE: %, SQLERRM: %',SQLSTATE,SQLERRM;
