@@ -2,8 +2,10 @@ package listener
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx"
+	"github.com/perangel/warp-pipe/internal/store"
 	"github.com/perangel/warp-pipe/pkg/model"
 	log "github.com/sirupsen/logrus"
 )
@@ -15,8 +17,10 @@ type NotifyListener struct {
 	conn   *pgx.Conn
 	logger *log.Entry
 
-	changesetsCh chan *model.Changeset
-	errCh        chan error
+	store                  store.EventStore
+	lastProcessedTimestamp *time.Time
+	changesetsCh           chan *model.Changeset
+	errCh                  chan error
 }
 
 // NewNotifyListener returne a new NotifyListener.
@@ -42,7 +46,36 @@ func (l *NotifyListener) Dial(connConfig *pgx.ConnConfig) error {
 
 // ListenForChanges returns a channel that emits database changesets.
 func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *model.Changeset, chan error) {
+	l.logger.Info("Starting notify listener for `warp_pipe_new_changeset`")
+	err := l.conn.Listen("warp_pipe_new_changeset")
+	if err != nil {
+		l.logger.WithError(err).Fatal("failed to listen on notify channel")
+	}
+
+	l.store = store.NewChangesetStore(l.conn)
+
+	// loop - listen for notifications
+	go func() {
+		for {
+			if msg, err := l.conn.WaitForNotification(ctx); err != nil {
+				if ctx.Err() != nil {
+					log.Info("shutting down...")
+					return
+				}
+				if err != nil {
+					log.WithError(err).Error("encountered an error while waiting for notifications")
+					l.errCh <- err
+				}
+				l.processMessage(msg.Payload)
+			}
+		}
+	}()
+
 	return l.changesetsCh, l.errCh
+}
+
+func (l *NotifyListener) processMessage(msg string) {
+
 }
 
 // Close closes the database connection.

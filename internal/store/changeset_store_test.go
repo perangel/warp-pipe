@@ -1,6 +1,6 @@
 // +build integration
 
-package db_test
+package store_test
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx"
 	"github.com/perangel/warp-pipe/internal/db"
+	"github.com/perangel/warp-pipe/internal/store"
 	"github.com/perangel/warp-pipe/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -171,7 +172,7 @@ func TestChangesetStore(t *testing.T) {
 		},
 	}
 
-	store := db.NewChangesetStore(conn)
+	changesets := store.NewChangesetStore(conn)
 
 	lastEvtTS := time.Now().Add(-1 * time.Minute)
 	for _, tc := range testCases {
@@ -180,7 +181,7 @@ func TestChangesetStore(t *testing.T) {
 			t.Error(err)
 		}
 
-		events, err := store.GetSinceTimestamp(context.Background(), lastEvtTS, 100)
+		events, err := changesets.GetSinceTimestamp(context.Background(), lastEvtTS, 100)
 		if err != nil {
 			t.Error(err)
 		}
@@ -215,4 +216,16 @@ func TestChangesetStore(t *testing.T) {
 
 		lastEvtTS = evt.Timestamp
 	}
+
+	t.Run("get since timestamp", func(t *testing.T) {
+		events, err := changesets.GetSinceTimestamp(context.Background(), time.Now().Add(-1*time.Hour), 10)
+		assert.NoError(t, err)
+		assert.Equal(t, len(testCases), len(events))
+	})
+
+	t.Run("get since ID", func(t *testing.T) {
+		events, err := changesets.GetSinceID(context.Background(), 2, 10)
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(events))
+	})
 }

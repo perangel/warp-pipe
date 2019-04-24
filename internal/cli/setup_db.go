@@ -45,7 +45,7 @@ For more details see: https://github.com/perangel/warp-pipe/docs/setup_database.
 			return err
 		}
 
-		err = db.SetupDatabase(conn, setupDBSchema, setupDBIgnoreTables)
+		err = db.Prepare(conn, setupDBSchema, setupDBIgnoreTables)
 		if err != nil {
 			return err
 		}
