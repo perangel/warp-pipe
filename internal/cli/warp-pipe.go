@@ -21,6 +21,7 @@ var (
 	dbPass          string
 	dbSchema        string
 	ignoreTables    []string
+	whitelistTables []string
 	replicationMode string
 	logLevel        string
 )
@@ -40,6 +41,7 @@ func init() {
 	WarpPipeCmd.Flags().StringVarP(&dbSchema, "db-schema", "S", "public", "database schema to replicate")
 	WarpPipeCmd.Flags().StringVarP(&replicationMode, "replication-mode", "M", replicationModeLR, "replication mode")
 	WarpPipeCmd.Flags().StringSliceVarP(&ignoreTables, "ignore-tables", "i", nil, "tables to ignore during replication")
+	WarpPipeCmd.Flags().StringSliceVarP(&whitelistTables, "whitelist-tables", "w", nil, "tables to include during replication")
 	WarpPipeCmd.Flags().SortFlags = false
 
 	WarpPipeCmd.AddCommand(
@@ -73,6 +75,7 @@ var WarpPipeCmd = &cobra.Command{
 			warppipe.Mode(replMode),
 			warppipe.DatabaseSchema(dbSchema),
 			warppipe.IgnoreTables(ignoreTables),
+			warppipe.WhitelistTables(whitelistTables),
 			warppipe.LoggingLevel(logLvl),
 		)
 		if err := wp.Open(); err != nil {
