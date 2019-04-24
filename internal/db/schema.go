@@ -89,17 +89,17 @@ func Prepare(conn *pgx.Conn, schema string, excludeTables []string) error {
 }
 
 func createSchema(tx *pgx.Tx) error {
-	_, err := tx.Exec(`CREATE SCHEMA warp_pipe`)
+	_, err := tx.Exec(createSchemaWarpPipeSQL)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.Exec(`REVOKE ALL ON SCHEMA warp_pipe FROM public`)
+	_, err = tx.Exec(revokeAllOnSchemaWarpPipeSQL)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.Exec(`COMMENT ON SCHEMA warp_pipe IS 'Changeset history tables and trigger functions'`)
+	_, err = tx.Exec(commentOnSchemaWarpPipeSQL)
 	if err != nil {
 		return err
 	}
@@ -108,38 +108,27 @@ func createSchema(tx *pgx.Tx) error {
 }
 
 func createChangesetsTable(tx *pgx.Tx) error {
-	_, err := tx.Exec(`
-		CREATE TABLE warp_pipe.changesets (
-			id BIGSERIAL PRIMARY KEY,
-			ts TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-			action TEXT NOT NULL CHECK (action IN ('INSERT', 'UPDATE', 'DELETE')),
-			schema_name TEXT NOT NULL,
-			table_name TEXT NOT NULL,
-			relid OID NOT NULL,
-			new_values JSON,
-			old_values JSON
-		)
-	`)
+	_, err := tx.Exec(createTableWarpPipeChangesetsSQL)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.Exec(`REVOKE ALL ON warp_pipe.changesets FROM public`)
+	_, err = tx.Exec(revokeAllOnWarpPipeChangesetsSQL)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.Exec(`CREATE INDEX changesets_changeset_ts_idx ON warp_pipe.changesets (ts)`)
+	_, err = tx.Exec(createIndexChangesetsTimestampSQL)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.Exec(`CREATE INDEX changesets_action_idx ON warp_pipe.changesets (action)`)
+	_, err = tx.Exec(createIndexChangesetsActionSQL)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.Exec(`CREATE INDEX changesets_schema_name__table_name_idx ON warp_pipe.changesets (((schema_name || '.' || table_name)::TEXT))`)
+	_, err = tx.Exec(createIndexChangesetsSchemaNameTableNameSQL)
 	if err != nil {
 		return err
 	}
@@ -148,93 +137,7 @@ func createChangesetsTable(tx *pgx.Tx) error {
 }
 
 func createTriggerFunc(tx *pgx.Tx) error {
-	_, err := tx.Exec(`
-		CREATE OR REPLACE FUNCTION warp_pipe.on_modify() 
-		RETURNS TRIGGER AS $$
-			BEGIN
-				IF TG_WHEN <> 'AFTER' THEN
-					RAISE EXCEPTION 'warp_pipe.on_modify() may only run as an AFTER trigger';
-				END IF;
-		
-				IF (TG_OP = 'UPDATE') THEN
-					INSERT INTO warp_pipe.changesets(
-						id,
-						ts,
-						action,
-						schema_name,
-						table_name,
-						relid,
-						new_values,
-						old_values
-					) VALUES (
-						nextval('warp_pipe.changesets_id_seq'),
-						current_timestamp,
-						TG_OP::TEXT,
-						TG_TABLE_SCHEMA::TEXT,                
-						TG_TABLE_NAME::TEXT,             
-						TG_RELID,
-						row_to_json(NEW),
-						row_to_json(OLD)
-					);
-					RETURN NEW;
-				ELSIF (TG_OP = 'DELETE') THEN
-					INSERT INTO warp_pipe.changesets(
-						id,
-						ts,
-						action,
-						schema_name,
-						table_name,
-						relid,
-						old_values
-					) VALUES (
-						nextval('warp_pipe.changesets_id_seq'),
-						current_timestamp,
-						TG_OP::TEXT,
-						TG_TABLE_SCHEMA::TEXT,                
-						TG_TABLE_NAME::TEXT,             
-						TG_RELID,
-						row_to_json(OLD)
-					);
-					RETURN OLD;
-				ELSIF (TG_OP = 'INSERT') THEN
-					INSERT INTO warp_pipe.changesets(
-						id,
-						ts,
-						action,
-						schema_name,
-						table_name,
-						relid,
-						new_values
-					) VALUES (
-						nextval('warp_pipe.changesets_id_seq'),
-						current_timestamp,
-						TG_OP::TEXT, TG_TABLE_SCHEMA::TEXT,                
-						TG_TABLE_NAME::TEXT,             
-						TG_RELID,
-						row_to_json(NEW)
-					);
-					RETURN NEW;
-				ELSE
-					RAISE WARNING '[WARP_PIPE.ON_MODIFY()] - Other action occurred: %, at %',TG_OP,NOW();
-					RETURN NULL;
-				END IF;
-	
-			PERFORM pg_notify('warp_pipe_new_changeset'::text, current_timestamp);
-
-			EXCEPTION
-				WHEN data_exception THEN
-					RAISE WARNING '[WARP_PIPE.ON_MODIFY()] - UDF ERROR [DATA EXCEPTION] - SQLSTATE: %, SQLERRM: %',SQLSTATE,SQLERRM;
-					RETURN NULL;
-				WHEN unique_violation THEN
-					RAISE WARNING '[WARP_PIPE.ON_MODIFY()] - UDF ERROR [UNIQUE] - SQLSTATE: %, SQLERRM: %',SQLSTATE,SQLERRM;
-					RETURN NULL;
-				WHEN OTHERS THEN
-					RAISE WARNING '[WARP_PIPE.ON_MODIFY()] - UDF ERROR [OTHER] - SQLSTATE: %, SQLERRM: %',SQLSTATE,SQLERRM;
-					RETURN NULL;
-		END;
-		$$ LANGUAGE plpgsql
-		SECURITY DEFINER
-	`)
+	_, err := tx.Exec(createOnModifyTriggerFuncSQL)
 
 	return err
 }
