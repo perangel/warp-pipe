@@ -12,6 +12,7 @@ type Config struct {
 	DBSchema        string   `envconfig:"DB_SCHEMA" default:"public"`
 	ReplicationMode string   `envconfig:"REPLICATION_MODE" default:"lr"`
 	IgnoreTables    []string `envconfig:"IGNORE_TABLES"`
+	WhitelistTables []string `envconfig:"WHITELIST_TABLES"`
 	LogLevel        string   `envconfig:"LOG_LEVEL" default:"info"`
 }
 
