@@ -181,7 +181,7 @@ func (l *LogicalReplicationListener) processMessage(msg *pgx.ReplicationMessage)
 
 	for _, change := range w2jmsg.Changes {
 		cs := &model.Changeset{
-			Kind:   change.Kind.AsChangesetKind(),
+			Kind:   model.ParseChangesetKind(change.Kind),
 			Schema: change.Schema,
 			Table:  change.Table,
 		}
@@ -208,7 +208,6 @@ func (l *LogicalReplicationListener) processMessage(msg *pgx.ReplicationMessage)
 			cs.OldValues = oldColValues
 		}
 
-		//l.logger.Infof("received changeset: %+v", (cs))
 		l.changesetsCh <- cs
 	}
 }
