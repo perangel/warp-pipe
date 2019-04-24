@@ -6,11 +6,11 @@ import (
 	"github.com/perangel/warp-pipe/pkg/model"
 )
 
-type stageFn func(context.Context, <-chan *model.Changeset, chan error) <-chan *model.Changeset
+type stageFn func(context.Context, <-chan *model.Changeset, chan error) chan *model.Changeset
 
 // makeStageFunc wraps a StageFunc and returns a stageFn.
 func makeStageFunc(sFun StageFunc) stageFn {
-	f := func(ctx context.Context, inCh <-chan *model.Changeset, errCh chan error) <-chan *model.Changeset {
+	f := func(ctx context.Context, inCh <-chan *model.Changeset, errCh chan error) chan *model.Changeset {
 		outCh := make(chan *model.Changeset)
 		go func() {
 			defer close(outCh)
@@ -53,7 +53,7 @@ type Stage struct {
 // Pipeline represents a sequence of stages for processing Changesets.
 type Pipeline struct {
 	Stages []*Stage
-	outCh  <-chan *model.Changeset
+	outCh  chan *model.Changeset
 	errCh  chan error
 }
 
@@ -75,12 +75,17 @@ func (p *Pipeline) AddStage(name string, fn StageFunc) {
 }
 
 // Start starts the pipeline, consuming off of a source chan that emits *model.Changeset.
-func (p *Pipeline) Start(ctx context.Context, sourceCh <-chan *model.Changeset) (<-chan *model.Changeset, <-chan error) {
-	initStage := p.Stages[0]
-	outCh := initStage.Fn(ctx, sourceCh, p.errCh)
-	for _, stage := range p.Stages[1:] {
-		outCh = stage.Fn(ctx, outCh, p.errCh)
+func (p *Pipeline) Start(ctx context.Context, sourceCh chan *model.Changeset) (chan *model.Changeset, <-chan error) {
+	if len(p.Stages) > 0 {
+		initStage := p.Stages[0]
+		outCh := initStage.Fn(ctx, sourceCh, p.errCh)
+		for _, stage := range p.Stages[1:] {
+			outCh = stage.Fn(ctx, outCh, p.errCh)
+		}
+		p.outCh = outCh
+	} else {
+		p.outCh = sourceCh
 	}
-	p.outCh = outCh
+
 	return p.outCh, p.errCh
 }

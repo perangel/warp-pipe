@@ -22,6 +22,7 @@ var (
 		"\"include-lsn\" 'on'",
 		"\"pretty-print\" 'off'",
 		"\"include-timestamp\" 'on'",
+		"\"add-tables\" 'public.*'",
 	}
 )
 
