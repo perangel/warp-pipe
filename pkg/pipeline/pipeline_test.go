@@ -14,9 +14,15 @@ func TestPipeline(t *testing.T) {
 	p := NewPipeline()
 
 	p.AddStage("remove_pii", func(change *model.Changeset) (*model.Changeset, error) {
-		if _, ok := change.NewValues["first_name"]; ok {
-			delete(change.NewValues, "first_name")
+		var filtered []*model.ChangesetColumn
+		for _, val := range change.NewValues {
+			if val.Column == "first_name" {
+				continue
+			}
+			filtered = append(filtered, val)
 		}
+
+		change.NewValues = filtered
 		return change, nil
 	})
 
@@ -26,8 +32,8 @@ func TestPipeline(t *testing.T) {
 	})
 
 	p.AddStage("filter_test_users", func(change *model.Changeset) (*model.Changeset, error) {
-		if isTest, ok := change.NewValues["is_test"]; ok {
-			if isTest.Value == "TRUE" {
+		for _, val := range change.NewValues {
+			if val.Column == "is_test" && val.Value == "TRUE" {
 				return nil, nil
 			}
 		}
@@ -40,27 +46,27 @@ func TestPipeline(t *testing.T) {
 
 	changesetWithPii := &model.Changeset{
 		Table: "users",
-		NewValues: map[string]*model.ChangesetColumn{
-			"first_name": &model.ChangesetColumn{
-				Name:  "first_name",
-				Type:  "string",
-				Value: "Bob",
+		NewValues: []*model.ChangesetColumn{
+			{
+				Column: "first_name",
+				Type:   "string",
+				Value:  "Bob",
 			},
 		},
 	}
 
 	changesetForTestUser := &model.Changeset{
 		Table: "users",
-		NewValues: map[string]*model.ChangesetColumn{
-			"first_name": &model.ChangesetColumn{
-				Name:  "first_name",
-				Type:  "string",
-				Value: "Alice",
+		NewValues: []*model.ChangesetColumn{
+			{
+				Column: "first_name",
+				Type:   "string",
+				Value:  "Alice",
 			},
-			"is_test": &model.ChangesetColumn{
-				Name:  "is_test",
-				Type:  "boolean",
-				Value: "TRUE",
+			{
+				Column: "is_test",
+				Type:   "boolean",
+				Value:  "TRUE",
 			},
 		},
 	}
@@ -85,6 +91,6 @@ func TestPipeline(t *testing.T) {
 
 	_ = <-time.After(300 * time.Millisecond)
 	assert.Equal(t, 1, len(results))
-	assert.NotContains(t, results[0].NewValues, "first_name")
+	assert.Equal(t, 0, len(results[0].NewValues))
 	assert.Equal(t, "USERS", results[0].Table)
 }

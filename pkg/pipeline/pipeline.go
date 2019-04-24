@@ -8,8 +8,8 @@ import (
 
 type stageFn func(context.Context, <-chan *model.Changeset, chan error) <-chan *model.Changeset
 
-// wrapStageFunc wraps a StageFunc and returns a stageFn.
-func wrapStageFunc(sFun StageFunc) stageFn {
+// makeStageFunc wraps a StageFunc and returns a stageFn.
+func makeStageFunc(sFun StageFunc) stageFn {
 	f := func(ctx context.Context, inCh <-chan *model.Changeset, errCh chan error) <-chan *model.Changeset {
 		outCh := make(chan *model.Changeset)
 		go func() {
@@ -70,7 +70,7 @@ func NewPipeline() *Pipeline {
 func (p *Pipeline) AddStage(name string, fn StageFunc) {
 	p.Stages = append(p.Stages, &Stage{
 		Name: name,
-		Fn:   wrapStageFunc(fn),
+		Fn:   makeStageFunc(fn),
 	})
 }
 
