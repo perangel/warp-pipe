@@ -233,5 +233,6 @@ func TestChangesetStore(t *testing.T) {
 		event, err := changesets.GetByID(context.Background(), 4)
 		assert.NoError(t, err)
 		assert.NotNil(t, event)
+		assert.Equal(t, int64(4), event.ID)
 	})
 }
