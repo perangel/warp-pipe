@@ -2,7 +2,9 @@ package listener
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx"
@@ -70,16 +72,68 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *model.Chan
 				}
 			}
 
-			l.processMessage(msg.Payload)
+			l.processMessage(msg)
 		}
 	}()
 
 	return l.changesetsCh, l.errCh
 }
 
-func (l *NotifyListener) processMessage(msg string) {
-	// TODO: finish implementation
-	fmt.Println(msg)
+func (l *NotifyListener) processMessage(msg *pgx.Notification) {
+	// payload is <event_id>_<timestamp>
+	parts := strings.Split(msg.Payload, "_")
+	eventID, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		log.WithError(err).WithField("changeset_id", parts[0]).
+			Error("failed to parse changeset ID from notification payload")
+		l.errCh <- err
+	}
+
+	event, err := l.store.GetByID(context.Background(), eventID)
+	if err != nil {
+		log.WithError(err).WithField("changeset_id", parts[0]).Error("failed to get changset from store")
+		l.errCh <- err
+	}
+
+	cs := &model.Changeset{
+		Kind:   model.ParseChangesetKind(event.Action),
+		Schema: event.SchemaName,
+		Table:  event.TableName,
+	}
+
+	if event.NewValues != nil {
+		var newValues map[string]interface{}
+		err := json.Unmarshal(event.NewValues, &newValues)
+		if err != nil {
+			l.errCh <- err
+		}
+
+		for k, v := range newValues {
+			col := &model.ChangesetColumn{
+				Column: k,
+				Value:  v,
+			}
+			cs.NewValues = append(cs.NewValues, col)
+		}
+	}
+
+	if event.OldValues != nil {
+		var oldValues map[string]interface{}
+		err := json.Unmarshal(event.OldValues, &oldValues)
+		if err != nil {
+			l.errCh <- err
+		}
+
+		for k, v := range oldValues {
+			col := &model.ChangesetColumn{
+				Column: k,
+				Value:  v,
+			}
+			cs.OldValues = append(cs.OldValues, col)
+		}
+	}
+
+	l.changesetsCh <- cs
 }
 
 // Close closes the database connection.
