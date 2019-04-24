@@ -2,6 +2,7 @@ package listener
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx"
@@ -57,7 +58,8 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *model.Chan
 	// loop - listen for notifications
 	go func() {
 		for {
-			if msg, err := l.conn.WaitForNotification(ctx); err != nil {
+			msg, err := l.conn.WaitForNotification(ctx)
+			if err != nil {
 				if ctx.Err() != nil {
 					log.Info("shutting down...")
 					return
@@ -66,8 +68,9 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *model.Chan
 					log.WithError(err).Error("encountered an error while waiting for notifications")
 					l.errCh <- err
 				}
-				l.processMessage(msg.Payload)
 			}
+
+			l.processMessage(msg.Payload)
 		}
 	}()
 
@@ -75,7 +78,8 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *model.Chan
 }
 
 func (l *NotifyListener) processMessage(msg string) {
-
+	// TODO: finish implementation
+	fmt.Println(msg)
 }
 
 // Close closes the database connection.

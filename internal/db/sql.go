@@ -64,6 +64,7 @@ const (
 							row_to_json(NEW),
 							row_to_json(OLD)
 						);
+						PERFORM pg_notify('warp_pipe_new_changeset', currval('warp_pipe.changesets_id_seq')::TEXT || '_' || current_timestamp::TEXT);
 						RETURN NEW;
 					ELSIF (TG_OP = 'DELETE') THEN
 						INSERT INTO warp_pipe.changesets(
@@ -83,6 +84,7 @@ const (
 							TG_RELID,
 							row_to_json(OLD)
 						);
+						PERFORM pg_notify('warp_pipe_new_changeset', currval('warp_pipe.changesets_id_seq')::TEXT || '_' || current_timestamp::TEXT);
 						RETURN OLD;
 					ELSIF (TG_OP = 'INSERT') THEN
 						INSERT INTO warp_pipe.changesets(
@@ -101,14 +103,13 @@ const (
 							TG_RELID,
 							row_to_json(NEW)
 						);
+						PERFORM pg_notify('warp_pipe_new_changeset', currval('warp_pipe.changesets_id_seq')::TEXT || '_' || current_timestamp::TEXT);
 						RETURN NEW;
 					ELSE
 						RAISE WARNING '[WARP_PIPE.ON_MODIFY()] - Other action occurred: %, at %',TG_OP,NOW();
 						RETURN NULL;
 					END IF;
 		
-				PERFORM pg_notify('warp_pipe_new_changeset'::text, current_timestamp);
-
 				EXCEPTION
 					WHEN data_exception THEN
 						RAISE WARNING '[WARP_PIPE.ON_MODIFY()] - UDF ERROR [DATA EXCEPTION] - SQLSTATE: %, SQLERRM: %',SQLSTATE,SQLERRM;
