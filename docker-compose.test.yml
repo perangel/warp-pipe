@@ -9,7 +9,5 @@ services:
       - POSTGRES_DB=test
       - POSTGRES_USER=test
       - POSTGRES_PASSWORD=test
-    volumes:
-      - "./scripts/sql:/tmp/sql"
     ports:
       - '6432:5432'
