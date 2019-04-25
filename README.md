@@ -37,13 +37,19 @@ In `queue` mode, `warp-pipe` creates a new schema (`warp_pipe`) with a `changese
 
 ### Installation
 
+Install the `warp-pipe` library with:
+
 ```shell
-go install github.com/perangel/warp-pipe/cmd/warp-pipe
+go get github.com/perangel/warp-pipe
+```
+
+Install the library and daemon with:
+
+```shell
+go get github.com/perangel/warp-pipe/...
 ```
 
 ### Usage
-
-**TODO:** Using as a library vs standalone
 
 ```text
 Run a warp-pipe and stream changes from a Postgres database.
