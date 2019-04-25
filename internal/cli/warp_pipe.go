@@ -6,7 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	warppipe "github.com/perangel/warp-pipe/pkg/warp-pipe"
+	warppipe "github.com/perangel/warp-pipe"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/spf13/cobra"
@@ -15,7 +15,7 @@ import (
 // Flags
 var (
 	dbHost          string
-	dbPort          int16
+	dbPort          int
 	dbName          string
 	dbUser          string
 	dbPass          string
@@ -34,7 +34,7 @@ const (
 func init() {
 	WarpPipeCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "L", "info", "log level")
 	WarpPipeCmd.PersistentFlags().StringVarP(&dbHost, "db-host", "H", "", "database host")
-	WarpPipeCmd.PersistentFlags().Int16VarP(&dbPort, "db-port", "p", 0, "database port")
+	WarpPipeCmd.PersistentFlags().IntVarP(&dbPort, "db-port", "p", 0, "database port")
 	WarpPipeCmd.PersistentFlags().StringVarP(&dbName, "db-name", "d", "", "database name")
 	WarpPipeCmd.PersistentFlags().StringVarP(&dbUser, "db-user", "U", "", "database user")
 	WarpPipeCmd.PersistentFlags().StringVarP(&dbPass, "db-pass", "P", "", "database password")
@@ -60,25 +60,18 @@ var WarpPipeCmd = &cobra.Command{
 			return err
 		}
 
-		replMode, err := parseReplicationMode(config.ReplicationMode)
-		if err != nil {
-			return err
-		}
-
-		logLvl, err := parseLogLevel(config.LogLevel)
+		listener, err := parseReplicationMode(config.ReplicationMode)
 		if err != nil {
 			return err
 		}
 
 		wp := warppipe.NewWarpPipe(
-			&config.DBConfig,
-			warppipe.Mode(replMode),
-			warppipe.DatabaseSchema(dbSchema),
+			listener,
 			warppipe.IgnoreTables(ignoreTables),
 			warppipe.WhitelistTables(whitelistTables),
-			warppipe.LoggingLevel(logLvl),
+			warppipe.LogLevel(logLevel),
 		)
-		if err := wp.Open(); err != nil {
+		if err := wp.Open(&config.Database); err != nil {
 			log.Fatal(err)
 		}
 

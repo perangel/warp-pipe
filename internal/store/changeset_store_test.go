@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx"
+	warppipe "github.com/perangel/warp-pipe"
 	"github.com/perangel/warp-pipe/internal/db"
 	"github.com/perangel/warp-pipe/internal/store"
-	"github.com/perangel/warp-pipe/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,13 +25,13 @@ func setupEnv() {
 	os.Setenv("DB_PASS", "test")
 }
 
-func getTestDBConn(config *config.Config) (*pgx.Conn, error) {
+func getTestDBConn(config *warppipe.Config) (*pgx.Conn, error) {
 	return pgx.Connect(pgx.ConnConfig{
-		Host:     config.DBConfig.DBHost,
-		Port:     config.DBConfig.DBPort,
-		Database: config.DBConfig.DBName,
-		User:     config.DBConfig.DBUser,
-		Password: config.DBConfig.DBPass,
+		Host:     config.Database.Host,
+		Port:     uint16(config.Database.Port),
+		Database: config.Database.Database,
+		User:     config.Database.User,
+		Password: config.Database.Password,
 	})
 }
 
@@ -62,7 +62,7 @@ func deleteUserSQL(email string) string {
 	return fmt.Sprintf(`DELETE FROM users WHERE email = '%s'`, email)
 }
 
-func setupDB(conn *pgx.Conn, config *config.Config) error {
+func setupDB(conn *pgx.Conn, config *warppipe.Config) error {
 	_, err := conn.Exec(`
 		CREATE TABLE users (
 			id SERIAL PRIMARY KEY,
@@ -76,7 +76,7 @@ func setupDB(conn *pgx.Conn, config *config.Config) error {
 		return err
 	}
 
-	return db.Prepare(conn, config.DBSchema, nil)
+	return db.Prepare(conn, "public", nil)
 }
 
 func teardownDB(conn *pgx.Conn) error {
@@ -95,7 +95,7 @@ func teardownDB(conn *pgx.Conn) error {
 
 func TestChangesetStore(t *testing.T) {
 	setupEnv()
-	cfg, _ := config.NewConfigFromEnv()
+	cfg, _ := warppipe.NewConfigFromEnv()
 	conn, err := getTestDBConn(cfg)
 	if err != nil {
 		t.Error(err)

@@ -1,4 +1,4 @@
-package model
+package warppipe
 
 // Wal2JSONMessage represents a wal2json message object.
 type Wal2JSONMessage struct {

@@ -1,4 +1,4 @@
-package listener
+package warppipe
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/jackc/pgx"
 	"github.com/perangel/warp-pipe/internal/store"
-	"github.com/perangel/warp-pipe/pkg/model"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -22,7 +21,7 @@ type NotifyListener struct {
 
 	store                  store.EventStore
 	lastProcessedTimestamp *time.Time
-	changesetsCh           chan *model.Changeset
+	changesetsCh           chan *Changeset
 	errCh                  chan error
 }
 
@@ -30,7 +29,7 @@ type NotifyListener struct {
 func NewNotifyListener() *NotifyListener {
 	return &NotifyListener{
 		logger:       log.WithFields(log.Fields{"component": "listener"}),
-		changesetsCh: make(chan *model.Changeset),
+		changesetsCh: make(chan *Changeset),
 		errCh:        make(chan error),
 	}
 }
@@ -48,7 +47,7 @@ func (l *NotifyListener) Dial(connConfig *pgx.ConnConfig) error {
 }
 
 // ListenForChanges returns a channel that emits database changesets.
-func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *model.Changeset, chan error) {
+func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset, chan error) {
 	l.logger.Info("Starting notify listener for `warp_pipe_new_changeset`")
 	err := l.conn.Listen("warp_pipe_new_changeset")
 	if err != nil {
@@ -95,8 +94,8 @@ func (l *NotifyListener) processMessage(msg *pgx.Notification) {
 		l.errCh <- err
 	}
 
-	cs := &model.Changeset{
-		Kind:   model.ParseChangesetKind(event.Action),
+	cs := &Changeset{
+		Kind:   ParseChangesetKind(event.Action),
 		Schema: event.SchemaName,
 		Table:  event.TableName,
 	}
@@ -109,7 +108,7 @@ func (l *NotifyListener) processMessage(msg *pgx.Notification) {
 		}
 
 		for k, v := range newValues {
-			col := &model.ChangesetColumn{
+			col := &ChangesetColumn{
 				Column: k,
 				Value:  v,
 			}
@@ -125,7 +124,7 @@ func (l *NotifyListener) processMessage(msg *pgx.Notification) {
 		}
 
 		for k, v := range oldValues {
-			col := &model.ChangesetColumn{
+			col := &ChangesetColumn{
 				Column: k,
 				Value:  v,
 			}

@@ -1,34 +1,15 @@
 version: '3'
 
 services:
-  #warp_pipe:
-  #  build:
-  #    dockerfile: build/warp-pipe/Dockerfile
-  #    context: .
-  #  entrypoint: |
-  #    sh -c '
-  #    until nc -w 1 -z source_db 5432; do
-  #      echo "Waiting for db... sleeping"
-  #      sleep 2
-  #    done
-  #    warp-pipe'
-  #  environment: 
-  #    - DB_HOST=source_db
-  #    - DB_PORT=5432
-  #    - DB_USER=demo
-  #    - DB_PASS=secret
-  #    - DB_NAME=demo
-  #  depends_on:
-  #    - source_db
 
   source_db:
     build:
       dockerfile: build/postgres/Dockerfile
       context: .
     environment: 
-      - POSTGRES_USER=demo
-      - POSTGRES_PASSWORD=secret
       - POSTGRES_DB=demo
+      - POSTGRES_USER=demo
+      - POSTGRES_PASSWORD=demo
     ports:
       - '5432:5432'
 
@@ -37,9 +18,9 @@ services:
       dockerfile: build/postgres/Dockerfile
       context: .
     environment: 
-      - POSTGRES_USER=demo
-      - POSTGRES_PASSWORD=secret
       - POSTGRES_DB=demo
+      - POSTGRES_USER=demo
+      - POSTGRES_PASSWORD=demo
     ports:
       - '6432:5432'
 
@@ -50,9 +31,9 @@ services:
     environment:
       - DB_HOST=source_db
       - DB_PORT=5432
-      - DB_USER=demo
-      - DB_PASS=secret
       - DB_NAME=demo
+      - DB_USER=demo
+      - DB_PASS=demo
     entrypoint: |
       sh -c '
       until nc -w 1 -z source_db 5432; do

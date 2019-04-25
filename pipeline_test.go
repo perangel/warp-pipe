@@ -1,4 +1,4 @@
-package pipeline
+package warppipe
 
 import (
 	"context"
@@ -6,15 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/perangel/warp-pipe/pkg/model"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestPipeline(t *testing.T) {
 	p := NewPipeline()
 
-	p.AddStage("remove_pii", func(change *model.Changeset) (*model.Changeset, error) {
-		var filtered []*model.ChangesetColumn
+	p.AddStage("remove_pii", func(change *Changeset) (*Changeset, error) {
+		var filtered []*ChangesetColumn
 		for _, val := range change.NewValues {
 			if val.Column == "first_name" {
 				continue
@@ -26,12 +25,12 @@ func TestPipeline(t *testing.T) {
 		return change, nil
 	})
 
-	p.AddStage("uppercase_tablename", func(change *model.Changeset) (*model.Changeset, error) {
+	p.AddStage("uppercase_tablename", func(change *Changeset) (*Changeset, error) {
 		change.Table = strings.ToUpper(change.Table)
 		return change, nil
 	})
 
-	p.AddStage("filter_test_users", func(change *model.Changeset) (*model.Changeset, error) {
+	p.AddStage("filter_test_users", func(change *Changeset) (*Changeset, error) {
 		for _, val := range change.NewValues {
 			if val.Column == "is_test" && val.Value == "TRUE" {
 				return nil, nil
@@ -40,13 +39,13 @@ func TestPipeline(t *testing.T) {
 		return change, nil
 	})
 
-	sourceCh := make(chan *model.Changeset)
+	sourceCh := make(chan *Changeset)
 	ctx, cancel := context.WithCancel(context.Background())
 	outCh, errCh := p.Start(ctx, sourceCh)
 
-	changesetWithPii := &model.Changeset{
+	changesetWithPii := &Changeset{
 		Table: "users",
-		NewValues: []*model.ChangesetColumn{
+		NewValues: []*ChangesetColumn{
 			{
 				Column: "first_name",
 				Type:   "string",
@@ -55,9 +54,9 @@ func TestPipeline(t *testing.T) {
 		},
 	}
 
-	changesetForTestUser := &model.Changeset{
+	changesetForTestUser := &Changeset{
 		Table: "users",
-		NewValues: []*model.ChangesetColumn{
+		NewValues: []*ChangesetColumn{
 			{
 				Column: "first_name",
 				Type:   "string",
@@ -72,11 +71,11 @@ func TestPipeline(t *testing.T) {
 	}
 
 	// NOTE: only add 1 to the waitgroup since the test user will be dropped
-	for _, change := range []*model.Changeset{changesetWithPii, changesetForTestUser} {
+	for _, change := range []*Changeset{changesetWithPii, changesetForTestUser} {
 		sourceCh <- change
 	}
 
-	var results []*model.Changeset
+	var results []*Changeset
 	go func() {
 		for {
 			select {

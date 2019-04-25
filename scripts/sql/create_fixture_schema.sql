@@ -7,6 +7,8 @@ CREATE TABLE users (
     UNIQUE (email)
 );
 
+CREATE INDEX users_email_idx ON users (email);
+
 -- Create a 'pets' table
 CREATE TABLE pets (
     id SERIAL PRIMARY KEY,

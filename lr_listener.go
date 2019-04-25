@@ -1,4 +1,4 @@
-package listener
+package warppipe
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx"
-	"github.com/perangel/warp-pipe/pkg/model"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -26,6 +25,30 @@ var (
 	}
 )
 
+// LROption is a LogicalReplicationListener option function
+type LROption func(*LogicalReplicationListener)
+
+// ReplSlotName is an option for setting the replication slot name.
+func ReplSlotName(name string) LROption {
+	return func(l *LogicalReplicationListener) {
+		l.replSlotName = name
+	}
+}
+
+// LSN is an option for setting the logical sequence number to start from.
+func LSN(lsn uint64) LROption {
+	return func(l *LogicalReplicationListener) {
+		l.replLSN = lsn
+	}
+}
+
+// HeartbeatInterval is an option for setting the connection heartbeat interval.
+func HeartbeatInterval(seconds int) LROption {
+	return func(l *LogicalReplicationListener) {
+		l.connHeartbeatIntervalSeconds = seconds
+	}
+}
+
 // LogicalReplicationListener is a Listener that uses logical replication slots
 // to listen for changesets.
 type LogicalReplicationListener struct {
@@ -36,20 +59,31 @@ type LogicalReplicationListener struct {
 	replSnapshot                 string
 	wal2jsonArgs                 []string
 	connHeartbeatIntervalSeconds int
-	changesetsCh                 chan *model.Changeset
+	changesetsCh                 chan *Changeset
 	errCh                        chan error
 	logger                       *log.Entry
 }
 
 // NewLogicalReplicationListener returns a new LogicalReplicationListener.
-func NewLogicalReplicationListener() *LogicalReplicationListener {
-	return &LogicalReplicationListener{
-		logger:                       log.WithFields(log.Fields{"component": "listener"}),
-		changesetsCh:                 make(chan *model.Changeset),
-		errCh:                        make(chan error),
-		connHeartbeatIntervalSeconds: 10, // TODO: make configurable
-		wal2jsonArgs:                 defaultWal2jsonArgs,
+func NewLogicalReplicationListener(opts ...LROption) *LogicalReplicationListener {
+	l := &LogicalReplicationListener{
+		logger:       log.WithFields(log.Fields{"component": "listener"}),
+		wal2jsonArgs: defaultWal2jsonArgs,
 	}
+
+	for _, opt := range opts {
+		opt(l)
+	}
+
+	if l.connHeartbeatIntervalSeconds == 0 {
+		l.connHeartbeatIntervalSeconds = 10
+	}
+
+	if l.replSlotName == "" {
+		l.replSlotName = fmt.Sprintf("%s%d", replicationSlotNamePrefix, time.Now().Unix())
+	}
+
+	return l
 }
 
 // Dial connects to the source database.
@@ -74,7 +108,6 @@ func (l *LogicalReplicationListener) Dial(connConfig *pgx.ConnConfig) error {
 		return err
 	}
 
-	l.replSlotName = fmt.Sprintf("%s%d", replicationSlotNamePrefix, time.Now().Unix())
 	consistentPoint, snapshot, err := l.replConn.CreateReplicationSlotEx(l.replSlotName, replicationOutputPlugin)
 	if err != nil {
 		l.logger.WithError(err).Errorf("failed to create replicaiton slot %s", l.replSlotName)
@@ -87,14 +120,16 @@ func (l *LogicalReplicationListener) Dial(connConfig *pgx.ConnConfig) error {
 		return err
 	}
 
-	l.replLSN = lsn
+	if l.replLSN == 0 {
+		l.replLSN = lsn
+	}
 	l.replSnapshot = snapshot
 
 	return nil
 }
 
 // ListenForChanges returns a channel that emits database changesets.
-func (l *LogicalReplicationListener) ListenForChanges(ctx context.Context) (chan *model.Changeset, chan error) {
+func (l *LogicalReplicationListener) ListenForChanges(ctx context.Context) (chan *Changeset, chan error) {
 	l.logger.Infof("Starting replication for slot '%s' from LSN %s",
 		l.replSlotName,
 		pgx.FormatLSN(l.replLSN),
@@ -106,6 +141,9 @@ func (l *LogicalReplicationListener) ListenForChanges(ctx context.Context) (chan
 	}
 
 	go l.startHeartBeat(ctx)
+
+	l.changesetsCh = make(chan *Changeset)
+	l.errCh = make(chan error)
 
 	// loop - listen for messages
 	go func() {
@@ -173,7 +211,7 @@ func (l *LogicalReplicationListener) startHeartBeat(ctx context.Context) {
 
 func (l *LogicalReplicationListener) processMessage(msg *pgx.ReplicationMessage) {
 	walMsgRaw := msg.WalMessage.WalData
-	var w2jmsg model.Wal2JSONMessage
+	var w2jmsg Wal2JSONMessage
 	err := json.Unmarshal(walMsgRaw, &w2jmsg)
 	if err != nil {
 		l.logger.WithError(err).Error("failed to parse wal2json message")
@@ -181,15 +219,15 @@ func (l *LogicalReplicationListener) processMessage(msg *pgx.ReplicationMessage)
 	}
 
 	for _, change := range w2jmsg.Changes {
-		cs := &model.Changeset{
-			Kind:   model.ParseChangesetKind(change.Kind),
+		cs := &Changeset{
+			Kind:   ParseChangesetKind(change.Kind),
 			Schema: change.Schema,
 			Table:  change.Table,
 		}
 
-		newColValues := make([]*model.ChangesetColumn, len(change.ColumnValues))
+		newColValues := make([]*ChangesetColumn, len(change.ColumnValues))
 		for i, name := range change.ColumnNames {
-			newColValues[i] = &model.ChangesetColumn{
+			newColValues[i] = &ChangesetColumn{
 				Column: name,
 				Value:  change.ColumnValues[i],
 				Type:   change.ColumnTypes[i],
@@ -198,9 +236,9 @@ func (l *LogicalReplicationListener) processMessage(msg *pgx.ReplicationMessage)
 		cs.NewValues = newColValues
 
 		if change.OldKeys != nil {
-			oldColValues := make([]*model.ChangesetColumn, len(change.OldKeys.KeyValues))
+			oldColValues := make([]*ChangesetColumn, len(change.OldKeys.KeyValues))
 			for i, name := range change.OldKeys.KeyNames {
-				oldColValues[i] = &model.ChangesetColumn{
+				oldColValues[i] = &ChangesetColumn{
 					Column: name,
 					Value:  change.OldKeys.KeyValues[i],
 					Type:   change.OldKeys.KeyTypes[i],

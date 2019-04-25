@@ -1,4 +1,4 @@
-package model
+package warppipe
 
 import "strings"
 

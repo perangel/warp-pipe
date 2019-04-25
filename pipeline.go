@@ -1,17 +1,15 @@
-package pipeline
+package warppipe
 
 import (
 	"context"
-
-	"github.com/perangel/warp-pipe/pkg/model"
 )
 
-type stageFn func(context.Context, <-chan *model.Changeset, chan error) chan *model.Changeset
+type stageFn func(context.Context, <-chan *Changeset, chan error) chan *Changeset
 
 // makeStageFunc wraps a StageFunc and returns a stageFn.
 func makeStageFunc(sFun StageFunc) stageFn {
-	f := func(ctx context.Context, inCh <-chan *model.Changeset, errCh chan error) chan *model.Changeset {
-		outCh := make(chan *model.Changeset)
+	f := func(ctx context.Context, inCh <-chan *Changeset, errCh chan error) chan *Changeset {
+		outCh := make(chan *Changeset)
 		go func() {
 			defer close(outCh)
 			for {
@@ -42,7 +40,7 @@ func makeStageFunc(sFun StageFunc) stageFn {
 //     (Changset, nil): If the stage was successful
 //     (nil, nil): If the changeset should be dropped (useful for filtering)
 //     (nil, error): If there was an error during the stage
-type StageFunc func(*model.Changeset) (*model.Changeset, error)
+type StageFunc func(*Changeset) (*Changeset, error)
 
 // Stage is a pipeline stage.
 type Stage struct {
@@ -53,7 +51,7 @@ type Stage struct {
 // Pipeline represents a sequence of stages for processing Changesets.
 type Pipeline struct {
 	Stages []*Stage
-	outCh  chan *model.Changeset
+	outCh  chan *Changeset
 	errCh  chan error
 }
 
@@ -61,7 +59,7 @@ type Pipeline struct {
 func NewPipeline() *Pipeline {
 	return &Pipeline{
 		Stages: []*Stage{},
-		outCh:  make(chan *model.Changeset),
+		outCh:  make(chan *Changeset),
 		errCh:  make(chan error),
 	}
 }
@@ -74,8 +72,8 @@ func (p *Pipeline) AddStage(name string, fn StageFunc) {
 	})
 }
 
-// Start starts the pipeline, consuming off of a source chan that emits *model.Changeset.
-func (p *Pipeline) Start(ctx context.Context, sourceCh chan *model.Changeset) (chan *model.Changeset, <-chan error) {
+// Start starts the pipeline, consuming off of a source chan that emits *Changeset.
+func (p *Pipeline) Start(ctx context.Context, sourceCh chan *Changeset) (chan *Changeset, <-chan error) {
 	if len(p.Stages) > 0 {
 		initStage := p.Stages[0]
 		outCh := initStage.Fn(ctx, sourceCh, p.errCh)
