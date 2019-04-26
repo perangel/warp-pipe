@@ -140,7 +140,6 @@ func (w *WarpPipe) ListenForChanges(ctx context.Context) (<-chan *Changeset, <-c
 			}
 			return change, nil
 		})
-
 	}
 
 	// listen for changes
