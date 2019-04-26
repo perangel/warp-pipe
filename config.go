@@ -22,7 +22,7 @@ type Config struct {
 	// Database configuration settings.
 	Database DBConfig
 	// ReplicationMode defines the type of listener that will be used to replicate
-	// database changes. May be one of `lr` or `queue`.
+	// database changes. May be one of `lr` or `audit`.
 	ReplicationMode string `envconfig:"REPLICATION_MODE" default:"lr"`
 	// (LR mode) ReplicationSlotName specifies the name to be used.
 	ReplicationSlotName string `envconfig:"REPLICATION_SLOT_NAME"`

@@ -51,9 +51,9 @@ func parseReplicationMode(mode string) (warppipe.Listener, error) {
 	switch mode {
 	case replicationModeLR:
 		return warppipe.NewLogicalReplicationListener(), nil
-	case replicationModeQueue:
+	case replicationModeAudit:
 		return warppipe.NewNotifyListener(), nil
 	default:
-		return nil, fmt.Errorf("'%s' is not a valid value for `--replication-mode`. Must be either `lr` or `queue`", mode)
+		return nil, fmt.Errorf("'%s' is not a valid value for `--replication-mode`. Must be either `lr` or `audit`", mode)
 	}
 }

@@ -28,7 +28,7 @@ var (
 
 const (
 	replicationModeLR    = "lr"
-	replicationModeQueue = "queue"
+	replicationModeAudit = "audit"
 )
 
 func init() {

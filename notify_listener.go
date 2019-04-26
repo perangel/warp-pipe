@@ -16,9 +16,8 @@ import (
 // subscribing for subscribing to changeset enqueued in a changesets table.
 // For more details see `pkg/schema/changesets`.
 type NotifyListener struct {
-	conn   *pgx.Conn
-	logger *log.Entry
-
+	conn                   *pgx.Conn
+	logger                 *log.Entry
 	store                  store.EventStore
 	lastProcessedTimestamp *time.Time
 	changesetsCh           chan *Changeset
@@ -132,6 +131,7 @@ func (l *NotifyListener) processMessage(msg *pgx.Notification) {
 		}
 	}
 
+	l.lastProcessedTimestamp = &event.Timestamp
 	l.changesetsCh <- cs
 }
 

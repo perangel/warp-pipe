@@ -33,7 +33,7 @@ In `LR` mode, `warp-pipe` will connect to a replication slot on your database us
 
 * Postgres >= 9.4
 
-In `queue` mode, `warp-pipe` creates a new schema (`warp_pipe`) with a `changesets` tables in your database to track modifications on your schema's tables. A `trigger` is registered with all configured tables to notify (via `NOTIFY/LISTEN`) when there are new changes to be read.
+In `audit` mode, `warp-pipe` creates a new schema (`warp_pipe`) with a `changesets` tables in your database to track modifications on your schema's tables. A `trigger` is registered with all configured tables to notify (via `NOTIFY/LISTEN`) when there are new changes to be read.
 
 ### Installation
 
@@ -83,7 +83,7 @@ Use "warp-pipe [command] --help" for more information about a command.
  Flag | Environment Variable | Description
 ------|----------------------|------------
 --log-level, -l | LOG_LEVEL | Sets the logging level
---replication-mode, -M | REPLICATION_MODE | Sets the replication mode to one of `queue` or `lr` (logical replication) (see: [requirements](#requirements))
+--replication-mode, -M | REPLICATION_MODE | Sets the replication mode to one of `audit` or `lr` (logical replication) (see: [requirements](#requirements))
 --ignore-tables, -i | IGNORE_TABLES | Specify tables to exclude from replication.
 --whitelist-tables, -w | WHITELIST_TABLES | Specify tables to include during replication.
 --db-schema, -S | DB_SCHEMA | The database schema to replicate.
