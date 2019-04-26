@@ -14,7 +14,7 @@ replication or an audit table to capture changes to your data.
 #### Requirements
 
 * Postgres >= 9.5
-* [wal2json](https://github.com/eulerto/wal2json) 
+* [wal2json](https://github.com/eulerto/wal2json)
 * Logical replication enabled (via postgresql.conf)
 
 You need to set up at least two parameters at postgresql.conf:
@@ -27,7 +27,9 @@ max_replication_slots = 1
 
 In `LR` mode, `warp-pipe` will connect to a replication slot on your database using the `wal2json` output plugin, and emit Changesets via channel.
 
-### Queue
+**NOTE:** You must set the appropriate `REPLICA IDENTITY` on your tables if you wish to expose old values in changesets. To learn more, see [replica identity](https://www.postgresql.org/docs/9.4/sql-altertable.html#SQL-CREATETABLE-REPLICA-IDENTITY).
+
+### Audit
 
 #### Requirements
 
@@ -92,3 +94,7 @@ Use "warp-pipe [command] --help" for more information about a command.
 --db-user, -U | DB_USER | The database user.
 --db-pass, -P | DB_PASS | The database password.
 --db-name, -d | DB_NAME | The database name.
+
+## Additional Reading
+
+* https://paquier.xyz/postgresql-2/postgres-9-4-feature-highlight-replica-identity-logical-replication/ - Useful article explaining the `REPLICA IDENTITY` feature in Postgres 9.4+
