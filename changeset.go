@@ -36,6 +36,28 @@ type Changeset struct {
 	OldValues []*ChangesetColumn `json:"old_values"`
 }
 
+func (c *Changeset) getColumnValue(values []*ChangesetColumn, column string) (interface{}, bool) {
+	for _, v := range values {
+		if v.Column == column {
+			return v.Value, true
+		}
+	}
+
+	return nil, false
+}
+
+// GetNewColumnValue returns the current value for a column and a bool denoting
+// whether a new value is present in the changeset.
+func (c *Changeset) GetNewColumnValue(column string) (interface{}, bool) {
+	return c.getColumnValue(c.NewValues, column)
+}
+
+// GetPreviousColumnValue returns the previous value for a column and a bool denoting
+// whether an old value is present in the changeset.
+func (c *Changeset) GetPreviousColumnValue(column string) (interface{}, bool) {
+	return c.getColumnValue(c.OldValues, column)
+}
+
 // ChangesetColumn represents a type and value for a column in a changset.
 type ChangesetColumn struct {
 	Column string      `json:"column"`
