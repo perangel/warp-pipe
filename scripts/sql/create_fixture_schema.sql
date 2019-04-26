@@ -13,5 +13,5 @@ CREATE INDEX users_email_idx ON users (email);
 CREATE TABLE pets (
     id SERIAL PRIMARY KEY,
     name TEXT,
-    owner_id INTEGER REFERENCES users(id)
+    owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE
 );
