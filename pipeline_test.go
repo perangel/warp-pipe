@@ -51,6 +51,11 @@ func TestPipeline(t *testing.T) {
 				Type:   "string",
 				Value:  "Bob",
 			},
+			{
+				Column: "is_test",
+				Type:   "boolean",
+				Value:  "FALSE",
+			},
 		},
 	}
 
@@ -90,6 +95,6 @@ func TestPipeline(t *testing.T) {
 
 	_ = <-time.After(300 * time.Millisecond)
 	assert.Equal(t, 1, len(results))
-	assert.Equal(t, 0, len(results[0].NewValues))
+	assert.Equal(t, 1, len(results[0].NewValues))
 	assert.Equal(t, "USERS", results[0].Table)
 }
