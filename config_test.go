@@ -16,6 +16,7 @@ func TestNewConfigFromEnv(t *testing.T) {
 		os.Setenv("WP_IGNORE_TABLES", "posts,comments")
 		os.Setenv("WP_WHITELIST_TABLES", "users,pets")
 		os.Setenv("WP_LOG_LEVEL", "info")
+		os.Setenv("WP_DB_HOST", "123.456.78.910")
 
 		config, err := warppipe.NewConfigFromEnv()
 		assert.NoError(t, err)
@@ -23,6 +24,13 @@ func TestNewConfigFromEnv(t *testing.T) {
 		assert.Equal(t, []string{"users", "pets"}, config.WhitelistTables)
 		assert.Equal(t, []string{"posts", "comments"}, config.IgnoreTables)
 		assert.Equal(t, "info", config.LogLevel)
+		assert.Equal(t, "123.456.78.910", config.Database.Host)
+
+		os.Unsetenv("WP_REPLICATION_MODE")
+		os.Unsetenv("WP_IGNORE_TABLES")
+		os.Unsetenv("WP_WHITELIST_TABLES")
+		os.Unsetenv("WP_LOG_LEVEL")
+		os.Unsetenv("WP_DB_HOST")
 	})
 
 	t.Run("test with no namespace", func(t *testing.T) {
@@ -37,6 +45,12 @@ func TestNewConfigFromEnv(t *testing.T) {
 		assert.Equal(t, []string{"users", "pets"}, config.WhitelistTables)
 		assert.Equal(t, []string{"posts", "comments"}, config.IgnoreTables)
 		assert.Equal(t, "info", config.LogLevel)
+
+		os.Unsetenv("REPLICATION_MODE")
+		os.Unsetenv("IGNORE_TABLES")
+		os.Unsetenv("WHITELIST_TABLES")
+		os.Unsetenv("LOG_LEVEL")
+		os.Unsetenv("DB_HOST")
 	})
 
 	t.Run("test parse database config", func(t *testing.T) {
@@ -53,6 +67,12 @@ func TestNewConfigFromEnv(t *testing.T) {
 		assert.Equal(t, "test_db", config.Database.Database)
 		assert.Equal(t, "tester", config.Database.User)
 		assert.Equal(t, "secret", config.Database.Password)
+
+		os.Unsetenv("DB_HOST")
+		os.Unsetenv("DB_PORT")
+		os.Unsetenv("DB_NAME")
+		os.Unsetenv("DB_USER")
+		os.Unsetenv("DB_PASS")
 	})
 }
 

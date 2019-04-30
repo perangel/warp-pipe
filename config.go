@@ -42,6 +42,15 @@ func NewConfigFromEnv() (*Config, error) {
 	if err != nil {
 		return nil, errors.New("unable to parse configuration from environment")
 	}
+
+	var dbCfg DBConfig
+	err = envconfig.Process("wp", &dbCfg)
+	if err != nil {
+		return nil, errors.New("unable to parse database configuration from environment")
+	}
+
+	c.Database = dbCfg
+
 	return &c, nil
 }
 
