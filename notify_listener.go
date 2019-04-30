@@ -12,6 +12,23 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// NotifyOption is a NotifyListener option function
+type NotifyOption func(*NotifyListener)
+
+// StartFromID is an option for setting the startFromID
+func StartFromID(changesetID int64) NotifyOption {
+	return func(l *NotifyListener) {
+		l.startFromID = &changesetID
+	}
+}
+
+// StartFromTimestamp is an option for setting the startFromTimestamp
+func StartFromTimestamp(t time.Time) NotifyOption {
+	return func(l *NotifyListener) {
+		l.startFromTimestamp = &t
+	}
+}
+
 // NotifyListener is a listener that uses Postgres' LISTEN/NOTIFY pattern for
 // subscribing for subscribing to changeset enqueued in a changesets table.
 // For more details see `pkg/schema/changesets`.
@@ -19,18 +36,26 @@ type NotifyListener struct {
 	conn                   *pgx.Conn
 	logger                 *log.Entry
 	store                  store.EventStore
+	startFromID            *int64
+	startFromTimestamp     *time.Time
 	lastProcessedTimestamp *time.Time
 	changesetsCh           chan *Changeset
 	errCh                  chan error
 }
 
 // NewNotifyListener returne a new NotifyListener.
-func NewNotifyListener() *NotifyListener {
-	return &NotifyListener{
+func NewNotifyListener(opts ...NotifyOption) *NotifyListener {
+	l := &NotifyListener{
 		logger:       log.WithFields(log.Fields{"component": "listener"}),
 		changesetsCh: make(chan *Changeset),
 		errCh:        make(chan error),
 	}
+
+	for _, opt := range opts {
+		opt(l)
+	}
+
+	return l
 }
 
 // Dial connects to the source database.
@@ -57,6 +82,28 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset,
 
 	// loop - listen for notifications
 	go func() {
+		if l.startFromID != nil {
+			changesets, err := l.store.GetSinceID(ctx, *l.startFromID)
+			if err != nil {
+				log.WithError(err).Fatal("encountered an error while reading changesets")
+				l.errCh <- err
+			}
+
+			for _, c := range changesets {
+				l.processChangeset(c)
+			}
+		} else if l.startFromTimestamp != nil {
+			changesets, err := l.store.GetSinceTimestamp(ctx, *l.startFromTimestamp)
+			if err != nil {
+				log.WithError(err).Fatal("encountered an error while reading changesets")
+				l.errCh <- err
+			}
+
+			for _, c := range changesets {
+				l.processChangeset(c)
+			}
+		}
+
 		for {
 			msg, err := l.conn.WaitForNotification(ctx)
 			if err != nil {
@@ -93,6 +140,10 @@ func (l *NotifyListener) processMessage(msg *pgx.Notification) {
 		l.errCh <- err
 	}
 
+	l.processChangeset(event)
+}
+
+func (l *NotifyListener) processChangeset(event *store.Event) {
 	cs := &Changeset{
 		Kind:   ParseChangesetKind(event.Action),
 		Schema: event.SchemaName,

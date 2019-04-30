@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx"
@@ -10,6 +11,10 @@ import (
 
 var (
 	errEventNotFound = errors.New("event not found")
+)
+
+const (
+	paginationDefaultLimit = 3
 )
 
 // Event represents an entry in the events store.
@@ -27,8 +32,8 @@ type Event struct {
 // EventStore is the interface for providing access to events storage.
 type EventStore interface {
 	GetByID(ctx context.Context, eventID int64) (*Event, error)
-	GetSinceID(ctx context.Context, eventID int64, limit int) ([]*Event, error)
-	GetSinceTimestamp(ctx context.Context, since time.Time, limit int) ([]*Event, error)
+	GetSinceID(ctx context.Context, eventID int64) ([]*Event, error)
+	GetSinceTimestamp(ctx context.Context, since time.Time) ([]*Event, error)
 	DeleteBeforeID(ctx context.Context, eventID int64) error
 	DeleteBeforeTimestamp(ctx context.Context, since time.Time) error
 }
@@ -106,8 +111,8 @@ func (s *ChangesetStore) GetByID(ctx context.Context, eventID int64) (*Event, er
 }
 
 // GetSinceID returns all events after a given ID.
-func (s *ChangesetStore) GetSinceID(ctx context.Context, eventID int64, limit int) ([]*Event, error) {
-	return s.query(`
+func (s *ChangesetStore) GetSinceID(ctx context.Context, eventID int64) ([]*Event, error) {
+	sql := `
 		SELECT
 			id,
 			ts,
@@ -118,17 +123,31 @@ func (s *ChangesetStore) GetSinceID(ctx context.Context, eventID int64, limit in
 			new_values,
 			old_values
 		FROM warp_pipe.changesets
-			WHERE id > $1
+			WHERE id >= $1
 			ORDER BY id 
-			LIMIT $2`,
-		eventID,
-		limit,
-	)
+			LIMIT %d
+			OFFSET %d`
+
+	var events []*Event
+	offset := 0
+	for {
+		evts, err := s.query(fmt.Sprintf(sql, paginationDefaultLimit, offset), eventID)
+		if err != nil {
+			return events, err
+		}
+
+		events = append(events, evts...)
+		if len(evts) < paginationDefaultLimit {
+			return events, nil
+		}
+
+		offset += len(evts)
+	}
 }
 
 // GetSinceTimestamp returns all events after a given timestamp.
-func (s *ChangesetStore) GetSinceTimestamp(ctx context.Context, since time.Time, limit int) ([]*Event, error) {
-	return s.query(`
+func (s *ChangesetStore) GetSinceTimestamp(ctx context.Context, since time.Time) ([]*Event, error) {
+	sql := `
 		SELECT
 			id,
 			ts,
@@ -139,12 +158,26 @@ func (s *ChangesetStore) GetSinceTimestamp(ctx context.Context, since time.Time,
 			new_values,
 			old_values
 		FROM warp_pipe.changesets
-			WHERE ts > $1
+			WHERE ts >= $1
 			ORDER BY ts
-			LIMIT $2`,
-		since,
-		limit,
-	)
+			LIMIT %d
+			OFFSET %d`
+
+	var events []*Event
+	offset := 0
+	for {
+		evts, err := s.query(fmt.Sprintf(sql, paginationDefaultLimit, offset), since)
+		if err != nil {
+			return events, err
+		}
+
+		events = append(events, evts...)
+		if len(evts) < paginationDefaultLimit {
+			return events, nil
+		}
+
+		offset += len(evts)
+	}
 }
 
 // DeleteBeforeID deletes all events before a given ID.

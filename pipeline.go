@@ -37,7 +37,7 @@ func makeStageFunc(sFun StageFunc) stageFn {
 
 // StageFunc is a function for processing changesets in a pipeline Stage.
 // It accepts a single argument, a Changset, and returns one of:
-//     (Changset, nil): If the stage was successful
+//     (Changeset, nil): If the stage was successful
 //     (nil, nil): If the changeset should be dropped (useful for filtering)
 //     (nil, error): If there was an error during the stage
 type StageFunc func(*Changeset) (*Changeset, error)
