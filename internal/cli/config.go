@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"time"
 
 	warppipe "github.com/perangel/warp-pipe"
 )
@@ -47,12 +48,23 @@ func parseConfig() (*warppipe.Config, error) {
 	return config, err
 }
 
-func parseReplicationMode(mode string) (warppipe.Listener, error) {
+func initListener(mode string) (warppipe.Listener, error) {
 	switch mode {
 	case replicationModeLR:
+		// TODO: implement opts from CLI
+		//var opts []warppipe.LROption
+		//return warppipe.NewLogicalReplicationListener(opts...), nil
 		return warppipe.NewLogicalReplicationListener(), nil
 	case replicationModeAudit:
-		return warppipe.NewNotifyListener(), nil
+		var opts []warppipe.NotifyOption
+		if startFromID != -1 {
+			opts = append(opts, warppipe.StartFromID(startFromID))
+		} else if startFromTimestamp != -1 {
+			t := time.Unix(startFromTimestamp, 0)
+			opts = append(opts, warppipe.StartFromTimestamp(t))
+		}
+
+		return warppipe.NewNotifyListener(opts...), nil
 	default:
 		return nil, fmt.Errorf("'%s' is not a valid value for `--replication-mode`. Must be either `lr` or `audit`", mode)
 	}

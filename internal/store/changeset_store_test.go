@@ -181,7 +181,7 @@ func TestChangesetStore(t *testing.T) {
 			t.Error(err)
 		}
 
-		events, err := changesets.GetSinceTimestamp(context.Background(), lastEvtTS, 100)
+		events, err := changesets.GetSinceTimestamp(context.Background(), lastEvtTS)
 		if err != nil {
 			t.Error(err)
 		}
@@ -218,13 +218,13 @@ func TestChangesetStore(t *testing.T) {
 	}
 
 	t.Run("get since timestamp", func(t *testing.T) {
-		events, err := changesets.GetSinceTimestamp(context.Background(), time.Now().Add(-1*time.Hour), 10)
+		events, err := changesets.GetSinceTimestamp(context.Background(), time.Now().Add(-1*time.Hour))
 		assert.NoError(t, err)
 		assert.Equal(t, len(testCases), len(events))
 	})
 
 	t.Run("get since ID", func(t *testing.T) {
-		events, err := changesets.GetSinceID(context.Background(), 2, 10)
+		events, err := changesets.GetSinceID(context.Background(), 2)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(events))
 	})

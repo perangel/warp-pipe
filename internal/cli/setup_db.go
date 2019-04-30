@@ -8,8 +8,9 @@ import (
 
 // Flags
 var (
-	setupDBIgnoreTables []string
-	setupDBSchema       string
+	setupDBSchema          string
+	setupDBIgnoreTables    []string
+	setupDBReplicaIdentity string
 )
 
 var setupDBCmd = &cobra.Command{

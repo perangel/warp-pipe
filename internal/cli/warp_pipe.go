@@ -14,16 +14,18 @@ import (
 
 // Flags
 var (
-	dbHost          string
-	dbPort          int
-	dbName          string
-	dbUser          string
-	dbPass          string
-	dbSchema        string
-	ignoreTables    []string
-	whitelistTables []string
-	replicationMode string
-	logLevel        string
+	dbHost             string
+	dbPort             int
+	dbName             string
+	dbUser             string
+	dbPass             string
+	dbSchema           string
+	ignoreTables       []string
+	whitelistTables    []string
+	replicationMode    string
+	logLevel           string
+	startFromID        int64
+	startFromTimestamp int64
 )
 
 const (
@@ -38,6 +40,8 @@ func init() {
 	WarpPipeCmd.PersistentFlags().StringVarP(&dbName, "db-name", "d", "", "database name")
 	WarpPipeCmd.PersistentFlags().StringVarP(&dbUser, "db-user", "U", "", "database user")
 	WarpPipeCmd.PersistentFlags().StringVarP(&dbPass, "db-pass", "P", "", "database password")
+	WarpPipeCmd.Flags().Int64Var(&startFromID, "start-from-id", -1, "stream all changes starting from the provided changeset ID")
+	WarpPipeCmd.Flags().Int64Var(&startFromTimestamp, "start-from-ts", -1, "stream all changes starting from the provided timestamp")
 	WarpPipeCmd.Flags().StringVarP(&dbSchema, "db-schema", "S", "public", "database schema to replicate")
 	WarpPipeCmd.Flags().StringVarP(&replicationMode, "replication-mode", "M", replicationModeLR, "replication mode")
 	WarpPipeCmd.Flags().StringSliceVarP(&ignoreTables, "ignore-tables", "i", nil, "tables to ignore during replication")
@@ -60,7 +64,7 @@ var WarpPipeCmd = &cobra.Command{
 			return err
 		}
 
-		listener, err := parseReplicationMode(config.ReplicationMode)
+		listener, err := initListener(config.ReplicationMode)
 		if err != nil {
 			return err
 		}
