@@ -35,8 +35,8 @@ func ReplSlotName(name string) LROption {
 	}
 }
 
-// LSN is an option for setting the logical sequence number to start from.
-func LSN(lsn uint64) LROption {
+// StartFromLSN is an option for setting the logical sequence number to start from.
+func StartFromLSN(lsn uint64) LROption {
 	return func(l *LogicalReplicationListener) {
 		l.replLSN = lsn
 	}

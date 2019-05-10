@@ -33,12 +33,28 @@ func parseConfig() (*warppipe.Config, error) {
 		config.Database.Database = dbName
 	}
 
+	if dbSchema != "" {
+		config.Database.Schema = dbSchema
+	}
+
 	if replicationMode != "" {
 		config.ReplicationMode = replicationMode
 	}
 
 	if ignoreTables != nil {
 		config.IgnoreTables = ignoreTables
+	}
+
+	if startFromLSN != -1 {
+		config.StartFromLSN = uint64(startFromLSN)
+	}
+
+	if startFromID != -1 {
+		config.StartFromID = startFromID
+	}
+
+	if startFromTimestamp != -1 {
+		config.StartFromTimestamp = startFromTimestamp
 	}
 
 	if logLevel != "" {
@@ -51,12 +67,16 @@ func parseConfig() (*warppipe.Config, error) {
 func initListener(mode string) (warppipe.Listener, error) {
 	switch mode {
 	case replicationModeLR:
-		// TODO: implement opts from CLI
-		//var opts []warppipe.LROption
-		//return warppipe.NewLogicalReplicationListener(opts...), nil
-		return warppipe.NewLogicalReplicationListener(), nil
+		var opts []warppipe.LROption
+
+		if startFromLSN != -1 {
+			opts = append(opts, warppipe.StartFromLSN(uint64(startFromLSN)))
+		}
+
+		return warppipe.NewLogicalReplicationListener(opts...), nil
 	case replicationModeAudit:
 		var opts []warppipe.NotifyOption
+
 		if startFromID != -1 {
 			opts = append(opts, warppipe.StartFromID(startFromID))
 		} else if startFromTimestamp != -1 {

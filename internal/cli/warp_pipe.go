@@ -20,12 +20,13 @@ var (
 	dbUser             string
 	dbPass             string
 	dbSchema           string
+	replicationMode    string
 	ignoreTables       []string
 	whitelistTables    []string
-	replicationMode    string
-	logLevel           string
 	startFromID        int64
 	startFromTimestamp int64
+	startFromLSN       int64
+	logLevel           string
 )
 
 const (
@@ -40,6 +41,7 @@ func init() {
 	WarpPipeCmd.PersistentFlags().StringVarP(&dbName, "db-name", "d", "", "database name")
 	WarpPipeCmd.PersistentFlags().StringVarP(&dbUser, "db-user", "U", "", "database user")
 	WarpPipeCmd.PersistentFlags().StringVarP(&dbPass, "db-pass", "P", "", "database password")
+	WarpPipeCmd.Flags().Int64Var(&startFromLSN, "start-from-lsn", -1, "stream all changes starting from the provided LSN")
 	WarpPipeCmd.Flags().Int64Var(&startFromID, "start-from-id", -1, "stream all changes starting from the provided changeset ID")
 	WarpPipeCmd.Flags().Int64Var(&startFromTimestamp, "start-from-ts", -1, "stream all changes starting from the provided timestamp")
 	WarpPipeCmd.Flags().StringVarP(&dbSchema, "db-schema", "S", "public", "database schema to replicate")

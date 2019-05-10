@@ -8,30 +8,44 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// DBConfig is a struct that stores database connection settings.
+// DBConfig represents the database configuration settings.
 type DBConfig struct {
 	Host     string `envconfig:"DB_HOST"`
 	Port     int    `envconfig:"DB_PORT"`
 	User     string `envconfig:"DB_USER"`
 	Password string `envconfig:"DB_PASS"`
 	Database string `envconfig:"DB_NAME"`
+	Schema   string `envconfig:"DB_SCHEMA"`
 }
 
-// Config is a struct that stores warp pipe configuration settings.
+// Config represents the warp pipe configuration settings.
 type Config struct {
-	// Database configuration settings.
+	// Database connection settings.
 	Database DBConfig
-	// ReplicationMode defines the type of listener that will be used to replicate
-	// database changes. May be one of `lr` or `audit`.
-	ReplicationMode string `envconfig:"REPLICATION_MODE" default:"lr"`
-	// (LR mode) ReplicationSlotName specifies the name to be used.
-	ReplicationSlotName string `envconfig:"REPLICATION_SLOT_NAME"`
-	// If set, only include changesets from the following tables.
+
+	// If defined, warppipe will only emit changes for the specified tables.
 	WhitelistTables []string `envconfig:"WHITELIST_TABLES"`
-	// If set, tables will be ignored when replicating changesets.
-	// Any tables listed that are also in the whitelist will be ignored.
+
+	// If set, warppipe will suppress changes for any specified tables.
+	// Note: This setting takes precedent over the whitelisted tables.
 	IgnoreTables []string `envconfig:"IGNORE_TABLES"`
-	// Logging level
+
+	// Replication mode may be either `lr` (logical replication) or `audit`.
+	ReplicationMode string `envconfig:"REPLICATION_MODE" default:"lr"`
+
+	// Specifies the replication slot name to be used. (LR mode only)
+	ReplicationSlotName string `envconfig:"REPLICATION_SLOT_NAME"`
+
+	// Start replication from the specified logical sequence number. (LR mode only)
+	StartFromLSN uint64 `envconfig:"START_FROM_LSN"`
+
+	// Start replication from the specified changeset ID. (Audit mode only)
+	StartFromID int64 `envconfig:"START_FROM_ID"`
+
+	// Start replication from the specified changeset timestamp. (Audit mode only)
+	StartFromTimestamp int64 `envconfig:"START_FROM_TIMESTAMP"`
+
+	// Sets the log level
 	LogLevel string `envconfig:"LOG_LEVEL" default:"info"`
 }
 
@@ -54,6 +68,7 @@ func NewConfigFromEnv() (*Config, error) {
 	return &c, nil
 }
 
+// ParseLogLevel parses a log level string and returns a logrus.Level.
 func ParseLogLevel(level string) (logrus.Level, error) {
 	lvl, err := logrus.ParseLevel(level)
 	if err != nil {
