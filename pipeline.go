@@ -50,7 +50,7 @@ type Stage struct {
 
 // Pipeline represents a sequence of stages for processing Changesets.
 type Pipeline struct {
-	Stages []*Stage
+	stages []*Stage
 	outCh  chan *Changeset
 	errCh  chan error
 }
@@ -58,7 +58,7 @@ type Pipeline struct {
 // NewPipeline returns a new Pipeline.
 func NewPipeline() *Pipeline {
 	return &Pipeline{
-		Stages: []*Stage{},
+		stages: []*Stage{},
 		outCh:  make(chan *Changeset),
 		errCh:  make(chan error),
 	}
@@ -66,7 +66,7 @@ func NewPipeline() *Pipeline {
 
 // AddStage adds a new Stage to the pipeline
 func (p *Pipeline) AddStage(name string, fn StageFunc) {
-	p.Stages = append(p.Stages, &Stage{
+	p.stages = append(p.stages, &Stage{
 		Name: name,
 		Fn:   makeStageFunc(fn),
 	})
@@ -74,10 +74,10 @@ func (p *Pipeline) AddStage(name string, fn StageFunc) {
 
 // Start starts the pipeline, consuming off of a source chan that emits *Changeset.
 func (p *Pipeline) Start(ctx context.Context, sourceCh chan *Changeset) (chan *Changeset, <-chan error) {
-	if len(p.Stages) > 0 {
-		initStage := p.Stages[0]
+	if len(p.stages) > 0 {
+		initStage := p.stages[0]
 		outCh := initStage.Fn(ctx, sourceCh, p.errCh)
-		for _, stage := range p.Stages[1:] {
+		for _, stage := range p.stages[1:] {
 			outCh = stage.Fn(ctx, outCh, p.errCh)
 		}
 		p.outCh = outCh
