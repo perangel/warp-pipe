@@ -14,9 +14,9 @@ type Option func(*WarpPipe)
 
 // IgnoreTables is an option for setting the tables that WarpPipe should ignore.
 // It accepts entries in either of the following formats:
-//     - schema.table
-//     - schema.*
-//     - table
+//     <schema>.<table>
+//     <schema>.*
+//     <table>
 // Any tables in this list will negate any whitelisted tables set via WhitelistTables().
 func IgnoreTables(tables []string) Option {
 	return func(w *WarpPipe) {
@@ -26,9 +26,9 @@ func IgnoreTables(tables []string) Option {
 
 // WhitelistTables is an option for setting a list of tables we want to listen for change from.
 // It accepts entries in either of the following formats:
-//     - schema.table
-//     - schema.*
-//     - table
+//     <schema>.<table>
+//     <schema>.*
+//     <table>
 // Any tables set via IgnoreTables() will be excluded.
 func WhitelistTables(tables []string) Option {
 	return func(w *WarpPipe) {
