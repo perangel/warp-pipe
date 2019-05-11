@@ -3,6 +3,7 @@ package warppipe
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,6 +15,16 @@ import (
 const (
 	replicationSlotNamePrefix = "wp_"
 	replicationOutputPlugin   = "wal2json"
+)
+
+var (
+	// ErrReplicationSlotExists is an error returned when trying to create an replication slot
+	// that already exists.
+	ErrReplicationSlotExists = errors.New("replication slot with same name already exists")
+
+	// ErrAllReplicationSlotsInUse is an error returned when there are no more available
+	// replication slots.
+	ErrAllReplicationSlotsInUse = errors.New("all replication slots are currently in use")
 )
 
 var (
@@ -79,10 +90,6 @@ func NewLogicalReplicationListener(opts ...LROption) *LogicalReplicationListener
 		l.connHeartbeatIntervalSeconds = 10
 	}
 
-	if l.replSlotName == "" {
-		l.replSlotName = fmt.Sprintf("%s%d", replicationSlotNamePrefix, time.Now().Unix())
-	}
-
 	return l
 }
 
@@ -102,36 +109,19 @@ func (l *LogicalReplicationListener) Dial(connConfig *pgx.ConnConfig) error {
 	}
 	l.replConn = replConn
 
-	err = l.clearReplicationSlots()
+	err = l.initReplicationSlot()
 	if err != nil {
-		l.logger.WithError(err).Error("failed to clear replication slots")
-		return err
+		l.logger.WithError(err).Fatal("failed to initialize replication slot")
 	}
-
-	consistentPoint, snapshot, err := l.replConn.CreateReplicationSlotEx(l.replSlotName, replicationOutputPlugin)
-	if err != nil {
-		l.logger.WithError(err).Errorf("failed to create replicaiton slot %s", l.replSlotName)
-		return err
-	}
-
-	lsn, err := pgx.ParseLSN(consistentPoint)
-	if err != nil {
-		l.logger.WithError(err).Error("failed to parse LSN from consistent point")
-		return err
-	}
-
-	if l.replLSN == 0 {
-		l.replLSN = lsn
-	}
-	l.replSnapshot = snapshot
 
 	return nil
 }
 
 // ListenForChanges returns a channel that emits database changesets.
 func (l *LogicalReplicationListener) ListenForChanges(ctx context.Context) (chan *Changeset, chan error) {
-	l.logger.Infof("Starting replication for slot '%s' from LSN %s",
+	l.logger.Infof("Starting replication for slot '%s' from LSN %d (%s)",
 		l.replSlotName,
+		l.replLSN,
 		pgx.FormatLSN(l.replLSN),
 	)
 
@@ -197,6 +187,87 @@ func (l *LogicalReplicationListener) Close() error {
 	return nil
 }
 
+func (l *LogicalReplicationListener) initReplicationSlot() error {
+	// If no replication slot name is specified, auto-generate one
+	if l.replSlotName == "" {
+		l.replSlotName = fmt.Sprintf("%s%d", replicationSlotNamePrefix, time.Now().Unix())
+	}
+
+	// Clear any prior auto-generate replication slots (e.g. wp_XXXX)
+	l.clearReplicationSlots()
+
+	// Create the replication slot
+	err := l.createReplicationSlot(l.replSlotName)
+	if err != nil {
+		switch err {
+		case ErrReplicationSlotExists:
+			if strings.HasPrefix(l.replSlotName, replicationSlotNamePrefix) {
+				return err
+			}
+			return nil
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (l *LogicalReplicationListener) clearReplicationSlots() error {
+	rows, err := l.conn.Query("SELECT slot_name FROM pg_replication_slots")
+	if err != nil {
+		l.logger.WithError(err).Error("failed to read replication slots.")
+		return err
+	}
+
+	for rows.Next() {
+		var slotName string
+		rows.Scan(&slotName)
+
+		if !strings.HasPrefix(slotName, replicationSlotNamePrefix) {
+			continue
+		}
+
+		l.logger.Infof("Deleting replication slot %s", slotName)
+		err = l.replConn.DropReplicationSlot(slotName)
+		if err != nil {
+			log.WithError(err).Error("failed to delete replication slot", slotName)
+		}
+	}
+
+	return nil
+}
+
+func (l *LogicalReplicationListener) createReplicationSlot(slotName string) error {
+	consistentPoint, snapshot, err := l.replConn.CreateReplicationSlotEx(slotName, replicationOutputPlugin)
+	if err != nil {
+		if pgErr, ok := err.(pgx.PgError); ok {
+			switch pgErr.Code {
+			// all replication slots in use
+			case "53400":
+				return ErrAllReplicationSlotsInUse
+			// slot already exists
+			case "42710":
+				return ErrReplicationSlotExists
+			default:
+				return err
+			}
+		}
+		return err
+	}
+
+	if l.replLSN == 0 {
+		lsn, err := pgx.ParseLSN(consistentPoint)
+		if err != nil {
+			l.logger.WithError(err).Error("failed to parse LSN from consistent point")
+			return err
+		}
+		l.replLSN = lsn
+		l.replSnapshot = snapshot
+	}
+
+	return nil
+}
+
 func (l *LogicalReplicationListener) startHeartBeat(ctx context.Context) {
 	for {
 		select {
@@ -249,33 +320,13 @@ func (l *LogicalReplicationListener) processMessage(msg *pgx.ReplicationMessage)
 
 		l.changesetsCh <- cs
 	}
-}
 
-func (l *LogicalReplicationListener) clearReplicationSlots() error {
-	rows, err := l.conn.Query("SELECT slot_name FROM pg_replication_slots")
+	lsn, err := pgx.ParseLSN(w2jmsg.NextLSN)
 	if err != nil {
-		l.logger.WithError(err).Error("Failed to read replication slots.")
-		return err
+		l.logger.WithError(err).Error("failed to parse NextLSN from wal2json message")
+		l.errCh <- err
 	}
-
-	for rows.Next() {
-		var slotName string
-		rows.Scan(&slotName)
-
-		if !strings.HasPrefix(slotName, replicationSlotNamePrefix) {
-			continue
-		}
-
-		// TODO: Handle re-using the same replication slot
-
-		l.logger.Infof("Deleting replication slot %s", slotName)
-		err = l.replConn.DropReplicationSlot(slotName)
-		if err != nil {
-			log.WithError(err).Error("failed to delte replication slot", slotName)
-		}
-	}
-
-	return nil
+	l.replLSN = lsn
 }
 
 func (l *LogicalReplicationListener) sendStandbyStatus() {
@@ -286,7 +337,7 @@ func (l *LogicalReplicationListener) sendStandbyStatus() {
 	}
 
 	status.ReplyRequested = 0
-	l.logger.Infof("sending StandbyStatus with LSN %s", pgx.FormatLSN(l.replLSN))
+	l.logger.Infof("sending StandbyStatus with LSN %d (%s)", l.replLSN, pgx.FormatLSN(l.replLSN))
 
 	err = l.replConn.SendStandbyStatus(status)
 	if err != nil {

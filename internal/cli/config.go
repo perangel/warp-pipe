@@ -57,6 +57,10 @@ func parseConfig() (*warppipe.Config, error) {
 		config.StartFromTimestamp = startFromTimestamp
 	}
 
+	if replSlotName != "" {
+		config.ReplicationSlotName = replSlotName
+	}
+
 	if logLevel != "" {
 		config.LogLevel = logLevel
 	}
@@ -71,6 +75,10 @@ func initListener(mode string) (warppipe.Listener, error) {
 
 		if startFromLSN != -1 {
 			opts = append(opts, warppipe.StartFromLSN(uint64(startFromLSN)))
+		}
+
+		if replSlotName != "" {
+			opts = append(opts, warppipe.ReplSlotName(replSlotName))
 		}
 
 		return warppipe.NewLogicalReplicationListener(opts...), nil
