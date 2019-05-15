@@ -43,7 +43,6 @@ type LogicalReplicationListener struct {
 	replConn                     *pgx.ReplicationConn
 	replSlotName                 string
 	replLSN                      uint64
-	replSnapshot                 string
 	wal2jsonArgs                 []string
 	connHeartbeatIntervalSeconds int
 	changesetsCh                 chan *Changeset
@@ -214,7 +213,7 @@ func (l *LogicalReplicationListener) clearReplicationSlots() error {
 }
 
 func (l *LogicalReplicationListener) createReplicationSlot(slotName string) error {
-	consistentPoint, snapshot, err := l.replConn.CreateReplicationSlotEx(slotName, replicationOutputPlugin)
+	consistentPoint, _, err := l.replConn.CreateReplicationSlotEx(slotName, replicationOutputPlugin)
 	if err != nil {
 		if pgErr, ok := err.(pgx.PgError); ok {
 			switch pgErr.Code {
@@ -238,7 +237,6 @@ func (l *LogicalReplicationListener) createReplicationSlot(slotName string) erro
 			return err
 		}
 		l.replLSN = lsn
-		l.replSnapshot = snapshot
 	}
 
 	return nil
