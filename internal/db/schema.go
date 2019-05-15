@@ -36,7 +36,7 @@ func Teardown(conn *pgx.Conn) error {
 //     - new `changesets` table in the `warp_pipe` schema
 //     - new TRIGGER function to be fired AFTER an INSERT, UPDATE, or DELETE on a table
 //     - registers the trigger with all configured tables in the source schema
-func Prepare(conn *pgx.Conn, schema string, excludeTables []string) error {
+func Prepare(conn *pgx.Conn, schema string, includeTables, excludeTables []string) error {
 	tx, err := conn.Begin()
 	if err != nil {
 		return errTransactionBegin
@@ -67,9 +67,14 @@ func Prepare(conn *pgx.Conn, schema string, excludeTables []string) error {
 		return errCreateTriggerFunc
 	}
 
-	registerTables, err := getTablesToRegister(conn, schema, excludeTables)
-	if err != nil {
-		return err
+	var registerTables []string
+	if includeTables != nil {
+		registerTables = includeTables
+	} else {
+		registerTables, err = getTablesToRegister(conn, schema, excludeTables)
+		if err != nil {
+			return err
+		}
 	}
 
 	for _, table := range registerTables {

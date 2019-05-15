@@ -10,6 +10,7 @@ import (
 var (
 	setupDBSchema          string
 	setupDBIgnoreTables    []string
+	setupDBWhitelistTables []string
 	setupDBReplicaIdentity string
 )
 
@@ -46,7 +47,7 @@ For more details see: https://github.com/perangel/warp-pipe/docs/setup_database.
 			return err
 		}
 
-		err = db.Prepare(conn, setupDBSchema, setupDBIgnoreTables)
+		err = db.Prepare(conn, setupDBSchema, setupDBWhitelistTables, setupDBIgnoreTables)
 		if err != nil {
 			return err
 		}
@@ -57,5 +58,6 @@ For more details see: https://github.com/perangel/warp-pipe/docs/setup_database.
 
 func init() {
 	setupDBCmd.Flags().StringSliceVarP(&setupDBIgnoreTables, "ignore-tables", "i", nil, "tables to exclude from replication setup")
+	setupDBCmd.Flags().StringSliceVarP(&setupDBWhitelistTables, "whitelist-tables", "w", nil, "tables to include in replication setup")
 	setupDBCmd.Flags().StringVarP(&setupDBSchema, "schema", "S", "public", "schema to setup for replication")
 }
