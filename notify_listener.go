@@ -12,23 +12,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// NotifyOption is a NotifyListener option function
-type NotifyOption func(*NotifyListener)
-
-// StartFromID is an option for setting the startFromID
-func StartFromID(changesetID int64) NotifyOption {
-	return func(l *NotifyListener) {
-		l.startFromID = &changesetID
-	}
-}
-
-// StartFromTimestamp is an option for setting the startFromTimestamp
-func StartFromTimestamp(t time.Time) NotifyOption {
-	return func(l *NotifyListener) {
-		l.startFromTimestamp = &t
-	}
-}
-
 // NotifyListener is a listener that uses Postgres' LISTEN/NOTIFY pattern for
 // subscribing for subscribing to changeset enqueued in a changesets table.
 // For more details see `pkg/schema/changesets`.
