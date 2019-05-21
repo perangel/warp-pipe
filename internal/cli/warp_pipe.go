@@ -67,16 +67,16 @@ var WarpPipeCmd = &cobra.Command{
 			return err
 		}
 
-		listener, err := initListener(config.ReplicationMode)
+		listener, err := initListener(config)
 		if err != nil {
 			return err
 		}
 
 		wp := warppipe.NewWarpPipe(
 			listener,
-			warppipe.IgnoreTables(ignoreTables),
-			warppipe.WhitelistTables(whitelistTables),
-			warppipe.LogLevel(logLevel),
+			warppipe.IgnoreTables(config.IgnoreTables),
+			warppipe.WhitelistTables(config.WhitelistTables),
+			warppipe.LogLevel(config.LogLevel),
 		)
 		if err := wp.Open(&config.Database); err != nil {
 			log.Fatal(err)

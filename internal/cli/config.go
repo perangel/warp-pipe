@@ -37,12 +37,16 @@ func parseConfig() (*warppipe.Config, error) {
 		config.Database.Schema = dbSchema
 	}
 
-	if replicationMode != "" {
-		config.ReplicationMode = replicationMode
+	if whitelistTables != nil {
+		config.WhitelistTables = whitelistTables
 	}
 
 	if ignoreTables != nil {
 		config.IgnoreTables = ignoreTables
+	}
+
+	if replicationMode != "" {
+		config.ReplicationMode = replicationMode
 	}
 
 	if startFromLSN != -1 {
@@ -64,28 +68,28 @@ func parseConfig() (*warppipe.Config, error) {
 	return config, err
 }
 
-func initListener(mode string) (warppipe.Listener, error) {
-	switch mode {
+func initListener(config *warppipe.Config) (warppipe.Listener, error) {
+	switch config.ReplicationMode {
 	case replicationModeLR:
 		var opts []warppipe.LROption
 
 		if startFromLSN != -1 {
-			opts = append(opts, warppipe.StartFromLSN(uint64(startFromLSN)))
+			opts = append(opts, warppipe.StartFromLSN(uint64(config.StartFromLSN)))
 		}
 
 		return warppipe.NewLogicalReplicationListener(opts...), nil
 	case replicationModeAudit:
 		var opts []warppipe.NotifyOption
 
-		if startFromID != -1 {
-			opts = append(opts, warppipe.StartFromID(startFromID))
-		} else if startFromTimestamp != -1 {
-			t := time.Unix(startFromTimestamp, 0)
+		if config.StartFromID != -1 {
+			opts = append(opts, warppipe.StartFromID(config.StartFromID))
+		} else if config.StartFromTimestamp != -1 {
+			t := time.Unix(config.StartFromTimestamp, 0)
 			opts = append(opts, warppipe.StartFromTimestamp(t))
 		}
 
 		return warppipe.NewNotifyListener(opts...), nil
 	default:
-		return nil, fmt.Errorf("'%s' is not a valid value for `--replication-mode`. Must be either `lr` or `audit`", mode)
+		return nil, fmt.Errorf("'%s' is not a valid value for `--replication-mode`. Must be either `lr` or `audit`", config.ReplicationMode)
 	}
 }
