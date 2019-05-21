@@ -2,6 +2,7 @@ package warppipe_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -18,6 +19,13 @@ func TestNewConfigFromEnv(t *testing.T) {
 		os.Setenv("WP_LOG_LEVEL", "info")
 		os.Setenv("WP_DB_HOST", "123.456.78.910")
 
+		defer func() {
+			for _, pair := range os.Environ() {
+				key := strings.Split(pair, "=")[0]
+				os.Unsetenv(key)
+			}
+		}()
+
 		config, err := warppipe.NewConfigFromEnv()
 		assert.NoError(t, err)
 		assert.Equal(t, "lr", config.ReplicationMode)
@@ -25,12 +33,6 @@ func TestNewConfigFromEnv(t *testing.T) {
 		assert.Equal(t, []string{"posts", "comments"}, config.IgnoreTables)
 		assert.Equal(t, "info", config.LogLevel)
 		assert.Equal(t, "123.456.78.910", config.Database.Host)
-
-		os.Unsetenv("WP_REPLICATION_MODE")
-		os.Unsetenv("WP_IGNORE_TABLES")
-		os.Unsetenv("WP_WHITELIST_TABLES")
-		os.Unsetenv("WP_LOG_LEVEL")
-		os.Unsetenv("WP_DB_HOST")
 	})
 
 	t.Run("test with no namespace", func(t *testing.T) {
