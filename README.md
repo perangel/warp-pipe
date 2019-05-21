@@ -63,8 +63,12 @@ Usage:
 Available Commands:
   help        Help about any command
   setup-db    Setup the source database
+  teardown-db Teardown the `warp_pipe` schema 
 
 Flags:
+      --start-from-lsn int         stream all changes starting from the provided LSN (default -1)
+      --start-from-id int          stream all changes starting from the provided changeset ID (default -1)
+      --start-from-ts int          stream all changes starting from the provided timestamp (default -1)
   -S, --db-schema string           database schema to replicate (default "public")
   -M, --replication-mode string    replication mode (default "lr")
   -i, --ignore-tables strings      tables to ignore during replication
@@ -72,7 +76,7 @@ Flags:
   -H, --db-host string             database host
   -d, --db-name string             database name
   -P, --db-pass string             database password
-  -p, --db-port int16              database port
+  -p, --db-port int                database port
   -U, --db-user string             database user
   -L, --log-level string           log level (default "info")
   -h, --help                       help for warp-pipe
@@ -82,18 +86,21 @@ Use "warp-pipe [command] --help" for more information about a command.
 
 ### Configuration
 
- Flag | Environment Variable | Description
-------|----------------------|------------
---log-level, -l | LOG_LEVEL | Sets the logging level
---replication-mode, -M | REPLICATION_MODE | Sets the replication mode to one of `audit` or `lr` (logical replication) (see: [requirements](#requirements))
---ignore-tables, -i | IGNORE_TABLES | Specify tables to exclude from replication.
---whitelist-tables, -w | WHITELIST_TABLES | Specify tables to include during replication.
---db-schema, -S | DB_SCHEMA | The database schema to replicate.
---db-host, -H | DB_HOST | The database host.
---db-port, -p | DB_PORT | The database port.
---db-user, -U | DB_USER | The database user.
---db-pass, -P | DB_PASS | The database password.
---db-name, -d | DB_NAME | The database name.
+ Flag | Environment Variable | Description | Mode
+------|----------------------|-------------|------
+--start-from-lsn | START_FROM_LSN | Sets the logical sequence number from which to start logical replication | lr
+--start-from-id | START_FROM_ID | Sets the changeset ID from which to start relaying changesets | audit
+--start-from-ts | START_FROM_TIMESTAMP | Sets the timestamp from which to start replaying changesets | audit
+-S, --db-schema | DB_SCHEMA | The database schema to replicate. | audit
+-M, --replication-mode | REPLICATION_MODE | Sets the replication mode to one of `audit` or `lr` (logical replication) (see: [requirements](#requirements)) | *
+-i, --ignore-tables | IGNORE_TABLES | Specify tables to exclude from replication. | *
+-w, --whitelist-tables | WHITELIST_TABLES | Specify tables to include during replication. | *
+-H, --db-host | DB_HOST | The database host. | *
+-d, --db-name | DB_NAME | The database name. | *
+-P, --db-pass | DB_PASS | The database password. | *
+-p, --db-port | DB_PORT | The database port. | *
+-U, --db-user | DB_USER | The database user. | *
+-L, --log-level | LOG_LEVEL | Sets the logging level | *
 
 ## Additional Reading
 
