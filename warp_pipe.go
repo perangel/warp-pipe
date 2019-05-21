@@ -55,7 +55,7 @@ type WarpPipe struct {
 	listener        Listener
 	ignoreTables    []string
 	whitelistTables []string
-	changesCh       chan *Changeset
+	changesCh       <-chan *Changeset
 	errCh           chan error
 	logger          *log.Logger
 }

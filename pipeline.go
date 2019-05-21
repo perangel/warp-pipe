@@ -51,7 +51,7 @@ type Stage struct {
 // Pipeline represents a sequence of stages for processing Changesets.
 type Pipeline struct {
 	stages []*Stage
-	outCh  chan *Changeset
+	outCh  <-chan *Changeset
 	errCh  chan error
 }
 
@@ -73,7 +73,7 @@ func (p *Pipeline) AddStage(name string, fn StageFunc) {
 }
 
 // Start starts the pipeline, consuming off of a source chan that emits *Changeset.
-func (p *Pipeline) Start(ctx context.Context, sourceCh chan *Changeset) (chan *Changeset, <-chan error) {
+func (p *Pipeline) Start(ctx context.Context, sourceCh <-chan *Changeset) (<-chan *Changeset, <-chan error) {
 	if len(p.stages) > 0 {
 		initStage := p.stages[0]
 		outCh := initStage.Fn(ctx, sourceCh, p.errCh)
