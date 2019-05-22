@@ -49,17 +49,9 @@ func parseConfig() (*warppipe.Config, error) {
 		config.ReplicationMode = replicationMode
 	}
 
-	if startFromLSN != -1 {
-		config.StartFromLSN = uint64(startFromLSN)
-	}
-
-	if startFromID != -1 {
-		config.StartFromID = startFromID
-	}
-
-	if startFromTimestamp != -1 {
-		config.StartFromTimestamp = startFromTimestamp
-	}
+	config.StartFromLSN = uint64(startFromLSN)
+	config.StartFromID = startFromID
+	config.StartFromTimestamp = startFromTimestamp
 
 	if logLevel != "" {
 		config.LogLevel = logLevel
