@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -88,7 +90,11 @@ var WarpPipeCmd = &cobra.Command{
 			for {
 				select {
 				case change := <-changes:
-					log.Printf("%+v\n", change)
+					b, err := json.Marshal(change)
+					if err != nil {
+						log.Error(err)
+					}
+					fmt.Println(string(b))
 				case err := <-errors:
 					log.Error(err)
 				}
