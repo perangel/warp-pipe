@@ -1,9 +1,13 @@
 .PHONY: all
 all: 
-	cd cmd/warp-pipe && go build -v
+	@cd cmd/warp-pipe && go build -v
+
+.PHONY: install
+install:
+	@cd cmd/warp-pipe && go install
 
 .PHONY: demo
-demo: demo-clean
+demo: 
 	./scripts/setup_demo.sh
 
 .PHONY: demo-clean
