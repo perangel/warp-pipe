@@ -23,3 +23,5 @@ docker-compose -f $basename/../docker-compose.demo.yml \
     -U $DB_USER \
     -d $DB_NAME \
     -c "$(cat $sqldir/create_fixture_schema.sql $sqldir/create_fixture_data.sql)"
+
+warp-pipe setup-db -H $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -P $DB_PASS
