@@ -58,7 +58,7 @@ func (c *Changeset) GetPreviousColumnValue(column string) (interface{}, bool) {
 	return c.getColumnValue(c.OldValues, column)
 }
 
-// ChangesetColumn represents a type and value for a column in a changset.
+// ChangesetColumn represents a type and value for a column in a changeset.
 type ChangesetColumn struct {
 	Column string      `json:"column"`
 	Value  interface{} `json:"value"`
