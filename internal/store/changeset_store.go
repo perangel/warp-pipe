@@ -14,7 +14,7 @@ var (
 )
 
 const (
-	paginationDefaultLimit = 3
+	paginationDefaultLimit = 250
 )
 
 // Event represents an entry in the events store.
