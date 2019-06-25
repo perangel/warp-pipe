@@ -1,6 +1,9 @@
 package warppipe
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 // ChangesetKind is the type for changeset kinds
 type ChangesetKind string
@@ -32,6 +35,7 @@ type Changeset struct {
 	Kind      ChangesetKind      `json:"kind"`
 	Schema    string             `json:"schema"`
 	Table     string             `json:"table"`
+	Timestamp time.Time          `json:"timestamp"`
 	NewValues []*ChangesetColumn `json:"new_values"`
 	OldValues []*ChangesetColumn `json:"old_values"`
 }

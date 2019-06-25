@@ -145,9 +145,10 @@ func (l *NotifyListener) processMessage(msg *pgx.Notification) {
 
 func (l *NotifyListener) processChangeset(event *store.Event) {
 	cs := &Changeset{
-		Kind:   ParseChangesetKind(event.Action),
-		Schema: event.SchemaName,
-		Table:  event.TableName,
+		Kind:      ParseChangesetKind(event.Action),
+		Schema:    event.SchemaName,
+		Table:     event.TableName,
+		Timestamp: event.Timestamp,
 	}
 
 	if event.NewValues != nil {
