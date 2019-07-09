@@ -2,8 +2,7 @@
 
 **NOTE:** NOT FOR PRODUCTION USE, THIS IS A WORK IN PROGRESS
 
-`warp-pipe` is a tool for streaming updates from Postgres. It uses either logical
-replication or an audit table to capture changes to your data.
+`warp-pipe` is a simple CDC tool for Postgres. 
 
 ## How does it work
 
