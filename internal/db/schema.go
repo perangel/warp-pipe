@@ -3,6 +3,7 @@ package db
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx"
 	log "github.com/sirupsen/logrus"
@@ -36,7 +37,7 @@ func Teardown(conn *pgx.Conn) error {
 //     - new `changesets` table in the `warp_pipe` schema
 //     - new TRIGGER function to be fired AFTER an INSERT, UPDATE, or DELETE on a table
 //     - registers the trigger with all configured tables in the source schema
-func Prepare(conn *pgx.Conn, schema string, includeTables, excludeTables []string) error {
+func Prepare(conn *pgx.Conn, schemas []string, includeTables, excludeTables []string) error {
 	tx, err := conn.Begin()
 	if err != nil {
 		return errTransactionBegin
@@ -71,7 +72,7 @@ func Prepare(conn *pgx.Conn, schema string, includeTables, excludeTables []strin
 	if includeTables != nil {
 		registerTables = includeTables
 	} else {
-		registerTables, err = getTablesToRegister(conn, schema, excludeTables)
+		registerTables, err = getTablesToRegister(conn, schemas, excludeTables)
 		if err != nil {
 			return err
 		}
@@ -147,29 +148,32 @@ func createTriggerFunc(tx *pgx.Tx) error {
 	return err
 }
 
-func getTablesToRegister(conn *pgx.Conn, schema string, excludeTables []string) ([]string, error) {
+func getTablesToRegister(conn *pgx.Conn, schemas []string, excludeTables []string) ([]string, error) {
 	exclude := make(map[string]struct{})
+	// TODO: support patterns
 	for _, t := range excludeTables {
 		exclude[t] = struct{}{}
 	}
 
-	rows, err := conn.Query(`
-		SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = $1`, schema,
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	var tables []string
-	for rows.Next() {
-		var t string
-		err = rows.Scan(&t)
+	for _, schema := range schemas {
+		rows, err := conn.Query(`
+		SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = $1`, schema,
+		)
 		if err != nil {
-			return nil, nil
+			return nil, err
 		}
 
-		if _, ok := exclude[t]; !ok {
-			tables = append(tables, t)
+		for rows.Next() {
+			var t string
+			err = rows.Scan(&t)
+			if err != nil {
+				return nil, nil
+			}
+
+			if _, ok := exclude[t]; !ok {
+				tables = append(tables, fmt.Sprintf("%s.%s", schema, t))
+			}
 		}
 	}
 
@@ -177,12 +181,14 @@ func getTablesToRegister(conn *pgx.Conn, schema string, excludeTables []string) 
 }
 
 func registerTrigger(tx *pgx.Tx, table string) error {
+	// trigger name is <schema>__<table>_changesets
+	triggerName := strings.ReplaceAll(table, ".", "__")
 	_, err := tx.Exec(fmt.Sprintf(`
 		CREATE TRIGGER %s_changesets 
 		AFTER 
 			INSERT OR UPDATE OR DELETE 
 		ON %s
-		FOR EACH ROW EXECUTE PROCEDURE warp_pipe.on_modify()`, table, table),
+		FOR EACH ROW EXECUTE PROCEDURE warp_pipe.on_modify()`, triggerName, table),
 	)
 
 	return err
