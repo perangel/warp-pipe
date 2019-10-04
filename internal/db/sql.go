@@ -32,8 +32,11 @@ const (
 	// Create an index for warp_pipe.changesets(action)
 	createIndexChangesetsActionSQL = `CREATE INDEX changesets_action_idx ON warp_pipe.changesets (action)`
 
-	// Create an index for warp_pipe.changesets(<schema_name>.<table_name>)
-	createIndexChangesetsSchemaNameTableNameSQL = `CREATE INDEX changesets_schema_name__table_name_idx ON warp_pipe.changesets (((schema_name || '.' || table_name)::TEXT))`
+	// Create an index for warp_pipe.changesets(schema_name)
+	createIndexChangesetsSchemaNameSQL = `CREATE INDEX changesets_schema_name_idx ON warp_pipe.changesets (schema_name)`
+
+	// Create an index for warp_pipe.changesets(table_name)
+	createIndexChangesetsTableNameSQL = `CREATE INDEX changesets_table_name_idx ON warp_pipe.changesets (table_name)`
 
 	// Create warp_pipe.on_modify() trigger function
 	createOnModifyTriggerFuncSQL = `
