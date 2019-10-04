@@ -14,7 +14,7 @@ var (
 )
 
 const (
-	paginationDefaultLimit = 250
+	paginationDefaultLimit = 500
 )
 
 // Event represents an entry in the events store.
@@ -32,8 +32,8 @@ type Event struct {
 // EventStore is the interface for providing access to events storage.
 type EventStore interface {
 	GetByID(ctx context.Context, eventID int64) (*Event, error)
-	GetSinceID(ctx context.Context, eventID int64) ([]*Event, error)
-	GetSinceTimestamp(ctx context.Context, since time.Time) ([]*Event, error)
+	GetSinceID(ctx context.Context, eventID int64, eventCh chan *Event, doneCh chan bool, errCh chan error)
+	GetSinceTimestamp(ctx context.Context, since time.Time, eventCh chan *Event, doneCh chan bool, errCh chan error)
 	DeleteBeforeID(ctx context.Context, eventID int64) error
 	DeleteBeforeTimestamp(ctx context.Context, since time.Time) error
 }
@@ -111,7 +111,7 @@ func (s *ChangesetStore) GetByID(ctx context.Context, eventID int64) (*Event, er
 }
 
 // GetSinceID returns all events after a given ID.
-func (s *ChangesetStore) GetSinceID(ctx context.Context, eventID int64) ([]*Event, error) {
+func (s *ChangesetStore) GetSinceID(ctx context.Context, eventID int64, eventCh chan *Event, doneCh chan bool, errCh chan error) {
 	sql := `
 		SELECT
 			id,
@@ -128,17 +128,21 @@ func (s *ChangesetStore) GetSinceID(ctx context.Context, eventID int64) ([]*Even
 			LIMIT %d
 			OFFSET %d`
 
-	var events []*Event
 	offset := 0
 	for {
 		evts, err := s.query(fmt.Sprintf(sql, paginationDefaultLimit, offset), eventID)
 		if err != nil {
-			return events, err
+			errCh <- err
+			return
 		}
 
-		events = append(events, evts...)
+		for _, event := range evts {
+			eventCh <- event
+		}
+
 		if len(evts) < paginationDefaultLimit {
-			return events, nil
+			doneCh <- true
+			return
 		}
 
 		offset += len(evts)
@@ -146,7 +150,7 @@ func (s *ChangesetStore) GetSinceID(ctx context.Context, eventID int64) ([]*Even
 }
 
 // GetSinceTimestamp returns all events after a given timestamp.
-func (s *ChangesetStore) GetSinceTimestamp(ctx context.Context, since time.Time) ([]*Event, error) {
+func (s *ChangesetStore) GetSinceTimestamp(ctx context.Context, since time.Time, eventCh chan *Event, doneCh chan bool, errCh chan error) {
 	sql := `
 		SELECT
 			id,
@@ -163,17 +167,21 @@ func (s *ChangesetStore) GetSinceTimestamp(ctx context.Context, since time.Time)
 			LIMIT %d
 			OFFSET %d`
 
-	var events []*Event
 	offset := 0
 	for {
 		evts, err := s.query(fmt.Sprintf(sql, paginationDefaultLimit, offset), since)
 		if err != nil {
-			return events, err
+			errCh <- err
+			return
 		}
 
-		events = append(events, evts...)
+		for _, event := range evts {
+			eventCh <- event
+		}
+
 		if len(evts) < paginationDefaultLimit {
-			return events, nil
+			doneCh <- true
+			return
 		}
 
 		offset += len(evts)

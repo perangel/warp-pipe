@@ -83,24 +83,44 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset,
 	// loop - listen for notifications
 	go func() {
 		if l.startFromID != nil {
-			changesets, err := l.store.GetSinceID(ctx, *l.startFromID)
-			if err != nil {
-				log.WithError(err).Fatal("encountered an error while reading changesets")
-				l.errCh <- err
-			}
+			eventCh := make(chan *store.Event)
+			doneCh := make(chan bool)
+			errCh := make(chan error)
 
-			for _, c := range changesets {
-				l.processChangeset(c)
+			go l.store.GetSinceID(ctx, *l.startFromID, eventCh, doneCh, errCh)
+
+			for {
+				select {
+				case c := <-eventCh:
+					l.processChangeset(c)
+				case err := <-errCh:
+					log.WithError(err).Fatal("encountered an error while reading changesets")
+					l.errCh <- err
+				case <-doneCh:
+					close(errCh)
+					close(eventCh)
+					break
+				}
 			}
 		} else if l.startFromTimestamp != nil {
-			changesets, err := l.store.GetSinceTimestamp(ctx, *l.startFromTimestamp)
-			if err != nil {
-				log.WithError(err).Fatal("encountered an error while reading changesets")
-				l.errCh <- err
-			}
+			eventCh := make(chan *store.Event)
+			doneCh := make(chan bool)
+			errCh := make(chan error)
 
-			for _, c := range changesets {
-				l.processChangeset(c)
+			go l.store.GetSinceTimestamp(ctx, *l.startFromTimestamp, eventCh, doneCh, errCh)
+
+			for {
+				select {
+				case c := <-eventCh:
+					l.processChangeset(c)
+				case err := <-errCh:
+					log.WithError(err).Fatal("encountered an error while reading changesets")
+					l.errCh <- err
+				case <-doneCh:
+					close(errCh)
+					close(eventCh)
+					break
+				}
 			}
 		}
 
