@@ -68,7 +68,6 @@ Flags:
       --start-from-lsn int         stream all changes starting from the provided LSN (default -1)
       --start-from-id int          stream all changes starting from the provided changeset ID (default -1)
       --start-from-ts int          stream all changes starting from the provided timestamp (default -1)
-  -S, --db-schema string           database schema to replicate (default "public")
   -M, --replication-mode string    replication mode (default "lr")
   -i, --ignore-tables strings      tables to ignore during replication
   -w, --whitelist-tables strings   tables to include during replication
@@ -90,7 +89,6 @@ Use "warp-pipe [command] --help" for more information about a command.
 | --start-from-lsn       | START_FROM_LSN       | Sets the logical sequence number from which to start logical replication                                       | lr    |
 | --start-from-id        | START_FROM_ID        | Sets the changeset ID from which to start relaying changesets                                                  | audit |
 | --start-from-ts        | START_FROM_TIMESTAMP | Sets the timestamp from which to start replaying changesets                                                    | audit |
-| -S, --db-schema        | DB_SCHEMA            | The database schema to replicate.                                                                              | audit |
 | -M, --replication-mode | REPLICATION_MODE     | Sets the replication mode to one of `audit` or `lr` (logical replication) (see: [requirements](#requirements)) | \*    |
 | -i, --ignore-tables    | IGNORE_TABLES        | Specify tables to exclude from replication.                                                                    | \*    |
 | -w, --whitelist-tables | WHITELIST_TABLES     | Specify tables to include during replication.                                                                  | \*    |

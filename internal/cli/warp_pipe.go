@@ -21,7 +21,6 @@ var (
 	dbName             string
 	dbUser             string
 	dbPass             string
-	dbSchema           string
 	replicationMode    string
 	ignoreTables       []string
 	whitelistTables    []string
@@ -46,7 +45,6 @@ func init() {
 	WarpPipeCmd.Flags().Int64Var(&startFromLSN, "start-from-lsn", -1, "stream all changes starting from the provided LSN")
 	WarpPipeCmd.Flags().Int64Var(&startFromID, "start-from-id", -1, "stream all changes starting from the provided changeset ID")
 	WarpPipeCmd.Flags().Int64Var(&startFromTimestamp, "start-from-ts", -1, "stream all changes starting from the provided timestamp")
-	WarpPipeCmd.Flags().StringVarP(&dbSchema, "db-schema", "S", "public", "database schema to replicate")
 	WarpPipeCmd.Flags().StringVarP(&replicationMode, "replication-mode", "M", replicationModeLR, "replication mode")
 	WarpPipeCmd.Flags().StringSliceVarP(&ignoreTables, "ignore-tables", "i", nil, "tables to ignore during replication")
 	WarpPipeCmd.Flags().StringSliceVarP(&whitelistTables, "whitelist-tables", "w", nil, "tables to include during replication")

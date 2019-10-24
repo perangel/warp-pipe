@@ -33,10 +33,6 @@ func parseConfig() (*warppipe.Config, error) {
 		config.Database.Database = dbName
 	}
 
-	if dbSchema != "" {
-		config.Database.Schema = dbSchema
-	}
-
 	if whitelistTables != nil {
 		config.WhitelistTables = whitelistTables
 	}
