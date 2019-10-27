@@ -134,7 +134,7 @@ func createChangesetsTable(tx *pgx.Tx) error {
 		return err
 	}
 
-	_, err = tx.Exec(createIndexChangesetsSchemaNameTableNameSQL)
+	_, err = tx.Exec(createIndexChangesetsTableNameSQL)
 	if err != nil {
 		return err
 	}
