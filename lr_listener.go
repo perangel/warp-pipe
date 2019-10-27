@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx"
+	"github.com/perangel/warp-pipe/internal/db"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -211,7 +212,7 @@ func (l *LogicalReplicationListener) startHeartBeat(ctx context.Context) {
 
 func (l *LogicalReplicationListener) processMessage(msg *pgx.ReplicationMessage) {
 	walMsgRaw := msg.WalMessage.WalData
-	var w2jmsg Wal2JSONMessage
+	var w2jmsg db.Wal2JSONMessage
 	err := json.Unmarshal(walMsgRaw, &w2jmsg)
 	if err != nil {
 		l.logger.WithError(err).Error("failed to parse wal2json message")

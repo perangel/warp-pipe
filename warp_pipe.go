@@ -9,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Option is a WrapPipe option function
+// Option is a WarpPipe option function
 type Option func(*WarpPipe)
 
 // IgnoreTables is an option for setting the tables that WarpPipe should ignore.
