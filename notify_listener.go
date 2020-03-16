@@ -89,6 +89,7 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset,
 
 			go l.store.GetSinceID(ctx, *l.startFromID, eventCh, doneCh, errCh)
 
+		processIDLoop:
 			for {
 				select {
 				case c := <-eventCh:
@@ -99,7 +100,7 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset,
 				case <-doneCh:
 					close(errCh)
 					close(eventCh)
-					break
+					break processIDLoop
 				}
 			}
 		} else if l.startFromTimestamp != nil {
@@ -109,6 +110,7 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset,
 
 			go l.store.GetSinceTimestamp(ctx, *l.startFromTimestamp, eventCh, doneCh, errCh)
 
+		processTimestampLoop:
 			for {
 				select {
 				case c := <-eventCh:
@@ -119,7 +121,7 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset,
 				case <-doneCh:
 					close(errCh)
 					close(eventCh)
-					break
+					break processTimestampLoop
 				}
 			}
 		}
