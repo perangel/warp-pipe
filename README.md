@@ -50,6 +50,19 @@ Install the library and daemon with:
 go get github.com/perangel/warp-pipe/...
 ```
 
+## Demo
+
+A demo is available of Changesets. A backend application connects to the Warp
+Pipe Changesets table list, then broadcasts to a front-end application via
+websockets.
+
+Run:
+
+```bash
+make demo
+make demo-clean
+```
+
 ### Usage
 
 ```text
