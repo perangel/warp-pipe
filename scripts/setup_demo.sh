@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 script="$0"
 basename="$(dirname $script)"
 sqldir="$basename/sql"
@@ -20,6 +22,7 @@ done
 docker-compose -f $basename/../docker-compose.demo.yml \
     exec -T -e PGPASSWORD=$DB_PASS source_db \
     psql \
+    -h $DB_HOST \
     -U $DB_USER \
     -d $DB_NAME \
     -c "$(cat $sqldir/create_fixture_schema.sql $sqldir/create_fixture_data.sql)"
