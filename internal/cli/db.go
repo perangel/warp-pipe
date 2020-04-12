@@ -4,8 +4,9 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx"
-	"github.com/perangel/warp-pipe/internal/db"
 	"github.com/spf13/cobra"
+
+	"github.com/perangel/warp-pipe/db"
 )
 
 // Flags

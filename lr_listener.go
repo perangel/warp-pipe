@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx"
-	"github.com/perangel/warp-pipe/internal/db"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/perangel/warp-pipe/db"
 )
 
 const (
