@@ -1,0 +1,19 @@
+version: '3'
+
+services:
+  source_db:
+    image: postgres:9.5-alpine
+    ports: 
+        - "5432:5432"
+    environment: 
+        - POSTGRES_USER=user
+        - POSTGRES_PASSWORD=user
+        - POSTGRES_DB=user
+  target_db:
+    image: postgres:11-alpine
+    ports: 
+        - "6432:5432"
+    environment: 
+        - POSTGRES_USER=user
+        - POSTGRES_PASSWORD=user
+        - POSTGRES_DB=user
