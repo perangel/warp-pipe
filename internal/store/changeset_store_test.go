@@ -11,10 +11,11 @@ import (
 	"time"
 
 	"github.com/jackc/pgx"
-	warppipe "github.com/perangel/warp-pipe"
-	"github.com/perangel/warp-pipe/internal/db"
-	"github.com/perangel/warp-pipe/internal/store"
 	"github.com/stretchr/testify/assert"
+
+	warppipe "github.com/perangel/warp-pipe"
+	"github.com/perangel/warp-pipe/db"
+	"github.com/perangel/warp-pipe/internal/store"
 )
 
 func setupEnv() {
