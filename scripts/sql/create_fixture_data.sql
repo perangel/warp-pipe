@@ -1,9 +1,9 @@
 -- Insert some test users
-INSERT INTO users ( 
+INSERT INTO users (
     first_name,
     last_name,
     email
-) VALUES 
+) VALUES
     ('Bob', 'Silver', 'bob@test.com'),
     ('Alice', 'Gold', 'alice@test.com'),
     ('Maria', 'Hierro', 'maria@test.com'),

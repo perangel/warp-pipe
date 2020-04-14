@@ -40,13 +40,13 @@ const (
 
 	// Create warp_pipe.on_modify() trigger function
 	createOnModifyTriggerFuncSQL = `
-		CREATE OR REPLACE FUNCTION warp_pipe.on_modify() 
+		CREATE OR REPLACE FUNCTION warp_pipe.on_modify()
 			RETURNS TRIGGER AS $$
 				BEGIN
 					IF TG_WHEN <> 'AFTER' THEN
 						RAISE EXCEPTION 'warp_pipe.on_modify() may only run as an AFTER trigger';
 					END IF;
-			
+
 					IF (TG_OP = 'UPDATE') THEN
 						INSERT INTO warp_pipe.changesets(
 							id,
@@ -61,8 +61,8 @@ const (
 							nextval('warp_pipe.changesets_id_seq'),
 							current_timestamp,
 							TG_OP::TEXT,
-							TG_TABLE_SCHEMA::TEXT,                
-							TG_TABLE_NAME::TEXT,             
+							TG_TABLE_SCHEMA::TEXT,
+							TG_TABLE_NAME::TEXT,
 							TG_RELID,
 							row_to_json(NEW),
 							row_to_json(OLD)
@@ -82,8 +82,8 @@ const (
 							nextval('warp_pipe.changesets_id_seq'),
 							current_timestamp,
 							TG_OP::TEXT,
-							TG_TABLE_SCHEMA::TEXT,                
-							TG_TABLE_NAME::TEXT,             
+							TG_TABLE_SCHEMA::TEXT,
+							TG_TABLE_NAME::TEXT,
 							TG_RELID,
 							row_to_json(OLD)
 						);
@@ -101,8 +101,8 @@ const (
 						) VALUES (
 							nextval('warp_pipe.changesets_id_seq'),
 							current_timestamp,
-							TG_OP::TEXT, TG_TABLE_SCHEMA::TEXT,                
-							TG_TABLE_NAME::TEXT,             
+							TG_OP::TEXT, TG_TABLE_SCHEMA::TEXT,
+							TG_TABLE_NAME::TEXT,
 							TG_RELID,
 							row_to_json(NEW)
 						);
@@ -112,7 +112,7 @@ const (
 						RAISE WARNING '[WARP_PIPE.ON_MODIFY()] - Other action occurred: %, at %',TG_OP,NOW();
 						RETURN NULL;
 					END IF;
-		
+
 				EXCEPTION
 					WHEN data_exception THEN
 						RAISE WARNING '[WARP_PIPE.ON_MODIFY()] - UDF ERROR [DATA EXCEPTION] - SQLSTATE: %, SQLERRM: %',SQLSTATE,SQLERRM;
