@@ -24,20 +24,28 @@ func prepareQueryArgs(changesetCols []*warppipe.ChangesetColumn) ([]string, []st
 	var cols []string
 	var colArgs []string
 	values := make(map[string]interface{}, len(cols))
-	for _, v := range changesetCols {
-		t := reflect.TypeOf(v.Value)
+	for _, c := range changesetCols {
+		t := reflect.TypeOf(c.Value)
 		if t != nil && t.Kind() == reflect.Map {
 			// Found a hashmap, this is a JSON/B field. Convert manually to string to
-			// avoid package "sql" error: "unsupported type map[string]interface {}"".
-			b, err := json.Marshal(v.Value)
+			// avoid package sql error: "unsupported type map[string]interface {}".
+			b, err := json.Marshal(c.Value)
 			if err != nil {
-				return cols, colArgs, values, fmt.Errorf("unable to marshal JSON field %s: %w", v.Column, err)
+				return cols, colArgs, values, fmt.Errorf("unable to marshal JSON field %s: %w", c.Column, err)
 			}
-			v.Value = string(b)
+			c.Value = string(b)
 		}
-		cols = append(cols, v.Column)
-		colArgs = append(colArgs, fmt.Sprintf(":%s", v.Column))
-		values[v.Column] = v.Value
+		if t != nil && t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Interface {
+			// Set empty slices to pq.Array(nil) to avoid package sql error on an
+			// empty character varying[]: "unsupported type []interface {}, a slice of
+			// interface"
+			if reflect.ValueOf(c.Value).Len() == 0 {
+				c.Value = pq.Array(nil)
+			}
+		}
+		cols = append(cols, c.Column)
+		colArgs = append(colArgs, fmt.Sprintf(":%s", c.Column))
+		values[c.Column] = c.Value
 	}
 
 	return cols, colArgs, values, nil
