@@ -110,7 +110,7 @@ func prepareUpdateQuery(schema string, primaryKey []string, change *warppipe.Cha
 }
 
 func prepareDeleteQuery(schema string, primaryKey []string, change *warppipe.Changeset) (string, map[string]interface{}) {
-	_, _, values, err := prepareQueryArgs(change.NewValues)
+	_, _, values, err := prepareQueryArgs(change.OldValues)
 	if err != nil {
 		log.Fatalf("prepareQueryArgs: error in changeset %s: %s", change, err)
 	}
@@ -158,6 +158,7 @@ func updateRow(conn *sqlx.DB, schema string, change *warppipe.Changeset, primary
 			log.Print("update duplicate row skipped")
 			return nil
 		}
+
 		return fmt.Errorf("PG error %s:%s failed to update %s for query %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), err)
 	}
 	log.Printf("row updated: %s", change)
