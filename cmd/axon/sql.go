@@ -4,13 +4,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 
 	"reflect"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	warppipe "github.com/perangel/warp-pipe"
 )
+
+var regexOneSpace = regexp.MustCompile(`\s+`)
+
+func removeDuplicateSpaces(in string) string {
+	return strings.TrimSpace(regexOneSpace.ReplaceAllString(in, " "))
+}
 
 func prepareQueryArgs(changesetCols []*warppipe.ChangesetColumn) ([]string, []string, map[string]interface{}, error) {
 	var cols []string
@@ -113,7 +121,17 @@ func insertRow(conn *sqlx.DB, schema string, change *warppipe.Changeset) error {
 	query, args := prepareInsertQuery(schema, change)
 	_, err := conn.NamedExec(query, args)
 	if err != nil {
-		return fmt.Errorf("failed to insert %s: %w", change, err)
+		// PG error codes: https://www.postgresql.org/docs/9.2/errcodes-appendix.html
+		pqe, ok := err.(*pq.Error)
+		if !ok {
+			return fmt.Errorf("failed to insert %s for query %s: %+v", change, removeDuplicateSpaces(query), err)
+		}
+		if pqe.Code.Name() == "unique_violation" {
+			// Ignore duplicates
+			log.Print("insert duplicate row skipped")
+			return nil
+		}
+		return fmt.Errorf("PG error %s:%s failed to insert %s for query %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), err)
 	}
 	log.Printf("row inserted: %s", change)
 	return nil
@@ -123,7 +141,16 @@ func updateRow(conn *sqlx.DB, schema string, change *warppipe.Changeset, primary
 	query, args := prepareUpdateQuery(schema, primaryKey, change)
 	_, err := conn.NamedExec(query, args)
 	if err != nil {
-		return fmt.Errorf("Error: failed to update row: %v", err)
+		pqe, ok := err.(*pq.Error)
+		if !ok {
+			return fmt.Errorf("failed to update %s for query %s: %+v", change, removeDuplicateSpaces(query), err)
+		}
+		if pqe.Code.Name() == "unique_violation" {
+			// Ignore duplicates
+			log.Print("update duplicate row skipped")
+			return nil
+		}
+		return fmt.Errorf("PG error %s:%s failed to update %s for query %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), err)
 	}
 	log.Printf("row updated: %s", change)
 	return nil
@@ -133,7 +160,11 @@ func deleteRow(conn *sqlx.DB, schema string, change *warppipe.Changeset, primary
 	query, values := prepareDeleteQuery(schema, primaryKey, change)
 	_, err := conn.NamedExec(query, values)
 	if err != nil {
-		return fmt.Errorf("Error: failed to delete row: %v", err)
+		pqe, ok := err.(*pq.Error)
+		if !ok {
+			return fmt.Errorf("failed to delete %s for query %s: %+v", change, removeDuplicateSpaces(query), err)
+		}
+		return fmt.Errorf("PG error %s:%s delete to update %s for query %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), err)
 	}
 	log.Printf("row deleted: %s", change)
 	return nil
