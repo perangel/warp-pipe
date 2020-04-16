@@ -115,13 +115,13 @@ func processDelete(conn *sqlx.DB, schema string, change *warppipe.Changeset) {
 	pk, err := getPrimaryKeyForChange(change)
 	if err != nil {
 		logger.WithError(err).WithField("table", change.Table).
-			Errorf("Error: unable to process DELETE for table '%s', changeset has no primary key", change.Table)
+			Errorf("unable to process DELETE for table '%s', changeset has no primary key", change.Table)
 	}
 
 	err = deleteRow(conn, schema, change, pk)
 	if err != nil {
 		logger.WithError(err).WithField("table", change.Table).
-			Errorf("Error: failed to DELETE row for table '%s' (pk: %s)", change.Table, pk)
+			Errorf("failed to DELETE row for table '%s' (pk: %s)", change.Table, pk)
 	}
 }
 
@@ -129,7 +129,7 @@ func processInsert(conn *sqlx.DB, schema string, change *warppipe.Changeset) {
 	err := insertRow(conn, schema, change)
 	if err != nil {
 		logger.WithError(err).WithField("table", change.Table).
-			Errorf("Error: failed to INSERT row for table '%s'", change.Table)
+			Errorf("failed to INSERT row for table '%s'", change.Table)
 	}
 }
 
@@ -137,12 +137,12 @@ func processUpdate(conn *sqlx.DB, schema string, change *warppipe.Changeset) {
 	pk, err := getPrimaryKeyForChange(change)
 	if err != nil {
 		logger.WithError(err).WithField("table", change.Table).
-			Errorf("Error: unable to process UPDATE for table '%s', changeset has no primary key", change.Table)
+			Errorf("unable to process UPDATE for table '%s', changeset has no primary key", change.Table)
 	}
 
 	err = updateRow(conn, schema, change, pk)
 	if err != nil {
 		logger.WithError(err).WithField("table", change.Table).
-			Errorf("Error: failed to UPDATE row for table '%s' (pk: %s)", change.Table, pk)
+			Errorf("failed to UPDATE row for table '%s' (pk: %s)", change.Table, pk)
 	}
 }
