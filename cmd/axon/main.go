@@ -59,6 +59,11 @@ func main() {
 		logger.WithError(err).Fatal("unable to connect to target database")
 	}
 
+	err = checkTargetVersion(targetDBConn)
+	if err != nil {
+		logger.WithError(err).Fatal("unable to use to target database")
+	}
+
 	err = loadPrimaryKeys(targetDBConn)
 	if err != nil {
 		logger.WithError(err).Fatal("unable to load target DB primary keys")
