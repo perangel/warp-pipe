@@ -69,6 +69,11 @@ func main() {
 		logger.WithError(err).Fatal("unable to load target DB primary keys")
 	}
 
+	err = loadColumnSequences(targetDBConn)
+	if err != nil {
+		logger.WithError(err).Fatal("unable to load target DB column sequences")
+	}
+
 	// create a notify listener and start from changeset id 1
 	listener := warppipe.NewNotifyListener(warppipe.StartFromID(0))
 	wp := warppipe.NewWarpPipe(listener)

@@ -136,11 +136,24 @@ func insertRow(conn *sqlx.DB, schema string, change *warppipe.Changeset) error {
 		}
 		if pqe.Code.Name() == "unique_violation" {
 			// Ignore duplicates
-			log.Print("insert duplicate row skipped")
+			// TODO: Should they be updated instead?
+			log.Printf("duplicate row insert skipped %s:", change)
+			// Always update, even on duplicate row.
+			err = updateColumnSequence(conn, change.Table, change.NewValues)
+			if err != nil {
+				return err
+			}
+
 			return nil
 		}
 		return fmt.Errorf("PG error %s:%s failed to insert %s for query %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), err)
 	}
+
+	err = updateColumnSequence(conn, change.Table, change.NewValues)
+	if err != nil {
+		return err
+	}
+
 	log.Printf("row inserted: %s", change)
 	return nil
 }
