@@ -48,6 +48,17 @@ func main() {
 	shutdownCh := make(chan os.Signal)
 	signal.Notify(shutdownCh, os.Interrupt, syscall.SIGTERM)
 
+	sourceDBConn, err := sqlx.Open("postgres", getDBConnString(
+		config.SourceDBHost,
+		config.SourceDBPort,
+		config.SourceDBName,
+		config.SourceDBUser,
+		config.SourceDBPass,
+	))
+	if err != nil {
+		logger.WithError(err).Fatal("unable to connect to source database")
+	}
+
 	targetDBConn, err := sqlx.Open("postgres", getDBConnString(
 		config.TargetDBHost,
 		config.TargetDBPort,
@@ -61,7 +72,7 @@ func main() {
 
 	err = checkTargetVersion(targetDBConn)
 	if err != nil {
-		logger.WithError(err).Fatal("unable to use to target database")
+		logger.WithError(err).Fatal("unable to use target database")
 	}
 
 	err = loadPrimaryKeys(targetDBConn)
@@ -96,7 +107,7 @@ func main() {
 	for {
 		select {
 		case change := <-changes:
-			processChange(targetDBConn, config.TargetDBSchema, change)
+			processChange(sourceDBConn, targetDBConn, config.TargetDBSchema, change)
 		case err := <-errs:
 			logger.WithError(err).
 				WithField("component", "warp_pipe").
@@ -110,47 +121,47 @@ func main() {
 	}
 }
 
-func processChange(conn *sqlx.DB, schema string, change *warppipe.Changeset) {
+func processChange(sourceDB *sqlx.DB, targetDB *sqlx.DB, schema string, change *warppipe.Changeset) {
 	switch change.Kind {
 	case warppipe.ChangesetKindInsert:
-		processInsert(conn, schema, change)
+		processInsert(sourceDB, targetDB, schema, change)
 	case warppipe.ChangesetKindUpdate:
-		processUpdate(conn, schema, change)
+		processUpdate(targetDB, schema, change)
 	case warppipe.ChangesetKindDelete:
-		processDelete(conn, schema, change)
+		processDelete(targetDB, schema, change)
 	}
 }
 
-func processDelete(conn *sqlx.DB, schema string, change *warppipe.Changeset) {
+func processDelete(targetDB *sqlx.DB, schema string, change *warppipe.Changeset) {
 	pk, err := getPrimaryKeyForChange(change)
 	if err != nil {
 		logger.WithError(err).WithField("table", change.Table).
 			Errorf("unable to process DELETE for table '%s', changeset has no primary key", change.Table)
 	}
 
-	err = deleteRow(conn, schema, change, pk)
+	err = deleteRow(targetDB, schema, change, pk)
 	if err != nil {
 		logger.WithError(err).WithField("table", change.Table).
 			Errorf("failed to DELETE row for table '%s' (pk: %s)", change.Table, pk)
 	}
 }
 
-func processInsert(conn *sqlx.DB, schema string, change *warppipe.Changeset) {
-	err := insertRow(conn, schema, change)
+func processInsert(sourceDB *sqlx.DB, targetDB *sqlx.DB, schema string, change *warppipe.Changeset) {
+	err := insertRow(sourceDB, targetDB, schema, change)
 	if err != nil {
 		logger.WithError(err).WithField("table", change.Table).
 			Errorf("failed to INSERT row for table '%s'", change.Table)
 	}
 }
 
-func processUpdate(conn *sqlx.DB, schema string, change *warppipe.Changeset) {
+func processUpdate(targetDB *sqlx.DB, schema string, change *warppipe.Changeset) {
 	pk, err := getPrimaryKeyForChange(change)
 	if err != nil {
 		logger.WithError(err).WithField("table", change.Table).
 			Errorf("unable to process UPDATE for table '%s', changeset has no primary key", change.Table)
 	}
 
-	err = updateRow(conn, schema, change, pk)
+	err = updateRow(targetDB, schema, change, pk)
 	if err != nil {
 		logger.WithError(err).WithField("table", change.Table).
 			Errorf("failed to UPDATE row for table '%s' (pk: %s)", change.Table, pk)

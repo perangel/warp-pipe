@@ -125,9 +125,9 @@ func prepareDeleteQuery(schema string, primaryKey []string, change *warppipe.Cha
 	return sql, values
 }
 
-func insertRow(conn *sqlx.DB, schema string, change *warppipe.Changeset) error {
+func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, schema string, change *warppipe.Changeset) error {
 	query, args := prepareInsertQuery(schema, change)
-	_, err := conn.NamedExec(query, args)
+	_, err := targetDB.NamedExec(query, args)
 	if err != nil {
 		// PG error codes: https://www.postgresql.org/docs/9.2/errcodes-appendix.html
 		pqe, ok := err.(*pq.Error)
@@ -139,7 +139,7 @@ func insertRow(conn *sqlx.DB, schema string, change *warppipe.Changeset) error {
 			// TODO: Should they be updated instead?
 			log.Printf("duplicate row insert skipped %s:", change)
 			// Always update, even on duplicate row.
-			err = updateColumnSequence(conn, change.Table, change.NewValues)
+			err = updateColumnSequence(targetDB, change.Table, change.NewValues)
 			if err != nil {
 				return err
 			}
@@ -149,7 +149,7 @@ func insertRow(conn *sqlx.DB, schema string, change *warppipe.Changeset) error {
 		return fmt.Errorf("PG error %s:%s failed to insert %s for query %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), err)
 	}
 
-	err = updateColumnSequence(conn, change.Table, change.NewValues)
+	err = updateColumnSequence(targetDB, change.Table, change.NewValues)
 	if err != nil {
 		return err
 	}
@@ -158,9 +158,9 @@ func insertRow(conn *sqlx.DB, schema string, change *warppipe.Changeset) error {
 	return nil
 }
 
-func updateRow(conn *sqlx.DB, schema string, change *warppipe.Changeset, primaryKey []string) error {
+func updateRow(targetDB *sqlx.DB, schema string, change *warppipe.Changeset, primaryKey []string) error {
 	query, args := prepareUpdateQuery(schema, primaryKey, change)
-	_, err := conn.NamedExec(query, args)
+	_, err := targetDB.NamedExec(query, args)
 	if err != nil {
 		pqe, ok := err.(*pq.Error)
 		if !ok {
@@ -178,9 +178,9 @@ func updateRow(conn *sqlx.DB, schema string, change *warppipe.Changeset, primary
 	return nil
 }
 
-func deleteRow(conn *sqlx.DB, schema string, change *warppipe.Changeset, primaryKey []string) error {
+func deleteRow(targetDB *sqlx.DB, schema string, change *warppipe.Changeset, primaryKey []string) error {
 	query, values := prepareDeleteQuery(schema, primaryKey, change)
-	_, err := conn.NamedExec(query, values)
+	_, err := targetDB.NamedExec(query, values)
 	if err != nil {
 		pqe, ok := err.(*pq.Error)
 		if !ok {
