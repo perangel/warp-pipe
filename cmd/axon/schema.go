@@ -17,6 +17,9 @@ var primaryKeys = make(map[string][]string)
 // maps serial key columns by table
 var sequenceColumns = make(map[string]string)
 
+// lists sequences not associated with any table column
+var orphanSequences []string
+
 func checkTargetVersion(conn *sqlx.DB) error {
 	var serverVersion string
 	err := conn.Get(&serverVersion, "SHOW server_version;")
@@ -133,10 +136,8 @@ func updateColumnSequence(conn *sqlx.DB, table string, columns []*warppipe.Chang
 			// Column does not have a SERIAL sequence
 			continue
 		}
-		var rows []struct {
-			SetVal string `db:"setval"`
-		}
-		err := conn.Select(&rows, `
+		var setVal string
+		err := conn.Get(&setVal, `
 		SELECT
 			setval(
 				$1,
@@ -147,7 +148,65 @@ func updateColumnSequence(conn *sqlx.DB, table string, columns []*warppipe.Chang
 		if err != nil {
 			return fmt.Errorf("updateSerialColumns: %w", err)
 		}
-		log.Printf("sequence set %s: %s", sequenceName, rows[0].SetVal)
+		log.Printf("sequence set %s: %s", sequenceName, setVal)
+	}
+	return nil
+}
+
+// loadOrphanSequences loads all sequences in the source database not associated
+// with a table column so they can be automatically updated each INSERT. There
+// is no way to watch sequence value updates, so all must be updated each
+// insert.
+func loadOrphanSequences(conn *sqlx.DB) error {
+	var rows []struct {
+		SequenceName string `db:"sequence_name"`
+	}
+	err := conn.Select(&rows, `
+		SELECT sequence_name
+		FROM information_schema.sequences
+		WHERE sequence_schema = 'public'`,
+	)
+	if err != nil {
+		return fmt.Errorf("loadOrphanSequences: %w", err)
+	}
+
+	var connectedSeq = make(map[string]bool)
+	for _, seq := range sequenceColumns {
+		connectedSeq[seq] = true
+	}
+
+	for _, r := range rows {
+		if _, ok := connectedSeq[r.SequenceName]; !ok {
+			// store name when not in the connected list
+			orphanSequences = append(orphanSequences, r.SequenceName)
+		}
+	}
+	log.Printf("orphaned sequences found: %v", orphanSequences)
+	return nil
+}
+
+func updateOrphanSequences(sourceDB *sqlx.DB, targetDB *sqlx.DB, table string, columns []*warppipe.ChangesetColumn) error {
+	for _, sequenceName := range orphanSequences {
+		var lastVal int64 // PG bigint is 8 bytes
+
+		err := sourceDB.Get(&lastVal, "SELECT last_value FROM "+sequenceName)
+		if err != nil {
+			return fmt.Errorf("updateOrphanSequences: error getting last_value for %s: %w", sequenceName, err)
+		}
+
+		var setVal string
+		err = targetDB.Get(&setVal, `
+		SELECT
+			setval(
+				$1,
+				$2,
+				true
+			)
+		`, sequenceName, lastVal)
+		if err != nil {
+			return fmt.Errorf("updateOrphanSequences: error setting value for %s: %w", sequenceName, err)
+		}
+		log.Printf("orphan sequence set %s: %v", sequenceName, setVal)
 	}
 	return nil
 }

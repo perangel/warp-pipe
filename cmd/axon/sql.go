@@ -154,6 +154,11 @@ func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, schema string, change *warp
 		return err
 	}
 
+	err = updateOrphanSequences(sourceDB, targetDB, change.Table, change.NewValues)
+	if err != nil {
+		return err
+	}
+
 	log.Printf("row inserted: %s", change)
 	return nil
 }
