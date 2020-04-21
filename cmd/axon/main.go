@@ -48,6 +48,7 @@ func main() {
 	shutdownCh := make(chan os.Signal)
 	signal.Notify(shutdownCh, os.Interrupt, syscall.SIGTERM)
 
+	// TODO: Refactor to use just one connection to the sourceDB
 	sourceDBConn, err := sqlx.Open("postgres", getDBConnString(
 		config.SourceDBHost,
 		config.SourceDBPort,
@@ -83,6 +84,11 @@ func main() {
 	err = loadColumnSequences(targetDBConn)
 	if err != nil {
 		logger.WithError(err).Fatal("unable to load target DB column sequences")
+	}
+
+	err = loadOrphanSequences(sourceDBConn)
+	if err != nil {
+		logger.WithError(err).Fatal("unable to load source DB orphan sequences")
 	}
 
 	// create a notify listener and start from changeset id 1

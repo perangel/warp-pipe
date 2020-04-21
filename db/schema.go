@@ -50,6 +50,9 @@ func Prepare(conn *pgx.Conn, schemas []string, includeTables, excludeTables []st
 		if ok && pgErr.Code == "42P06" {
 			return errDuplicateSchema
 		}
+		if ok {
+			log.Printf("%v+", pgErr)
+		}
 		return errCreateSchema
 	}
 
@@ -82,6 +85,12 @@ func Prepare(conn *pgx.Conn, schemas []string, includeTables, excludeTables []st
 		log.Infof("registering trigger for table %s", table)
 		err = registerTrigger(tx, table)
 		if err != nil {
+			pgErr, ok := err.(pgx.PgError)
+			if ok {
+				log.Printf("%v+", pgErr)
+			}
+			// Failure case resolution:
+			// GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO master;
 			return errRegisterTrigger
 		}
 	}
@@ -184,9 +193,9 @@ func registerTrigger(tx *pgx.Tx, table string) error {
 	// trigger name is <schema>__<table>_changesets
 	triggerName := strings.ReplaceAll(table, ".", "__")
 	_, err := tx.Exec(fmt.Sprintf(`
-		CREATE TRIGGER %s_changesets 
-		AFTER 
-			INSERT OR UPDATE OR DELETE 
+		CREATE TRIGGER %s_changesets
+		AFTER
+			INSERT OR UPDATE OR DELETE
 		ON %s
 		FOR EACH ROW EXECUTE PROCEDURE warp_pipe.on_modify()`, triggerName, table),
 	)
