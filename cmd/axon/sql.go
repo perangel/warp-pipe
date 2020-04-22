@@ -146,7 +146,7 @@ func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, schema string, change *warp
 
 			return nil
 		}
-		return fmt.Errorf("PG error %s:%s failed to insert %s for query %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), err)
+		return fmt.Errorf("PG error %s:%s failed to insert %s for query %s args %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), args, err)
 	}
 
 	err = updateColumnSequence(targetDB, change.Table, change.NewValues)
@@ -177,7 +177,7 @@ func updateRow(targetDB *sqlx.DB, schema string, change *warppipe.Changeset, pri
 			return nil
 		}
 
-		return fmt.Errorf("PG error %s:%s failed to update %s for query %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), err)
+		return fmt.Errorf("PG error %s:%s failed to update %s for query %s args %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), args, err)
 	}
 	log.Printf("row updated: %s", change)
 	return nil

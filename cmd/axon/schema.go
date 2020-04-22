@@ -45,6 +45,16 @@ func checkTargetVersion(conn *sqlx.DB) error {
 	return nil
 }
 
+func printSourceStats(conn *sqlx.DB) error {
+	var changesetCount int
+	err := conn.QueryRow("SELECT count(id) FROM warp_pipe.changesets").Scan(&changesetCount)
+	if err != nil {
+		return err
+	}
+	log.Printf("Changesets Found in Source: %d", changesetCount)
+	return nil
+}
+
 func loadPrimaryKeys(conn *sqlx.DB) error {
 	var rows []struct {
 		TableName  string         `db:"table_name"`
