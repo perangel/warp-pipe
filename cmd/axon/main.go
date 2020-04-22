@@ -76,6 +76,13 @@ func main() {
 		logger.WithError(err).Fatal("unable to use target database")
 	}
 
+	// TODO: (1) add support for selecting the warp-pipe mode
+	// TODO: (2) only print the source stats if that is audit
+	err = printSourceStats(sourceDBConn)
+	if err != nil {
+		logger.WithError(err).Fatal("unable get source db stats")
+	}
+
 	err = loadPrimaryKeys(targetDBConn)
 	if err != nil {
 		logger.WithError(err).Fatal("unable to load target DB primary keys")
@@ -110,19 +117,25 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	changes, errs := wp.ListenForChanges(ctx)
 
+	go func() {
+		<-shutdownCh
+		logger.Error("shutting down...")
+		cancel()
+		wp.Close()
+		sourceDBConn.Close()
+		targetDBConn.Close()
+		os.Exit(0)
+	}()
+
 	for {
 		select {
-		case change := <-changes:
-			processChange(sourceDBConn, targetDBConn, config.TargetDBSchema, change)
 		case err := <-errs:
 			logger.WithError(err).
 				WithField("component", "warp_pipe").
 				Error("received an error")
-		case <-shutdownCh:
-			logger.Info("shutting down...")
-			cancel()
-			wp.Close()
-			return
+		case change := <-changes:
+			processChange(sourceDBConn, targetDBConn, config.TargetDBSchema, change)
+
 		}
 	}
 }
