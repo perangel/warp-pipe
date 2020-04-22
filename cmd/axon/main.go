@@ -73,7 +73,7 @@ func main() {
 
 	err = checkTargetVersion(targetDBConn)
 	if err != nil {
-		logger.WithError(err).Fatal("unable to use target database")
+		logger.WithError(err).Fatal("unable to check target database version")
 	}
 
 	err = printSourceStats(sourceDBConn)
