@@ -41,6 +41,8 @@ func prepareQueryArgs(changesetCols []*warppipe.ChangesetColumn) ([]string, []st
 			// interface"
 			if reflect.ValueOf(c.Value).Len() == 0 {
 				c.Value = pq.Array(nil)
+			} else {
+				c.Value = pq.Array(c.Value)
 			}
 		}
 		cols = append(cols, c.Column)
@@ -132,7 +134,7 @@ func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, schema string, change *warp
 		// PG error codes: https://www.postgresql.org/docs/9.2/errcodes-appendix.html
 		pqe, ok := err.(*pq.Error)
 		if !ok {
-			return fmt.Errorf("failed to insert %s for query %s: %+v", change, removeDuplicateSpaces(query), err)
+			return fmt.Errorf("failed to insert %s for query %s args %s: %+v", change, removeDuplicateSpaces(query), args, err)
 		}
 		if pqe.Code.Name() == "unique_violation" {
 			// Ignore duplicates
@@ -169,7 +171,7 @@ func updateRow(targetDB *sqlx.DB, schema string, change *warppipe.Changeset, pri
 	if err != nil {
 		pqe, ok := err.(*pq.Error)
 		if !ok {
-			return fmt.Errorf("failed to update %s for query %s: %+v", change, removeDuplicateSpaces(query), err)
+			return fmt.Errorf("failed to update %s for query %s args %s: %+v", change, removeDuplicateSpaces(query), args, err)
 		}
 		if pqe.Code.Name() == "unique_violation" {
 			// Ignore duplicates
