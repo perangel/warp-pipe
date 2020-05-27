@@ -147,7 +147,7 @@ func updateColumnSequence(conn *sqlx.DB, table string, columns []*warppipe.Chang
 			continue
 		}
 		var setVal string
-		err := conn.QueryRow(`
+		err := conn.Get(&setVal, `
 		SELECT
 			setval(
 				$1,
