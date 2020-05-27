@@ -128,8 +128,8 @@ func loadColumnSequences(conn *sqlx.DB) error {
 	return nil
 }
 
-func getSequenceColumn(table, column string) (string, bool) {
-	if sequenceName, ok := columnSequences[table+"/"+column]; ok {
+func getSequenceColumns(table, column string) (string, bool) {
+	if sequenceName, ok := sequenceColumns[table+"/"+column]; ok {
 		return sequenceName, true
 	}
 	return "", false
