@@ -89,8 +89,6 @@ func Prepare(conn *pgx.Conn, schemas []string, includeTables, excludeTables []st
 			if ok {
 				log.Printf("%v+", pgErr)
 			}
-			// Failure case resolution:
-			// GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO master;
 			return errRegisterTrigger
 		}
 	}
