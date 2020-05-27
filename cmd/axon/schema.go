@@ -205,7 +205,7 @@ func updateOrphanSequences(sourceDB *sqlx.DB, targetDB *sqlx.DB, table string, c
 		}
 
 		var setVal string
-		err = targetDB.QueryRow(`
+		err = targetDB.Get(&setVal, `
 		SELECT
 			setval(
 				$1,
