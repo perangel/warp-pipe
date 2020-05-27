@@ -14,7 +14,7 @@ import (
 	warppipe "github.com/perangel/warp-pipe"
 )
 
-var regexOneSpace = regexp.MustCompile(`\s+`)
+var regexSpace = regexp.MustCompile(`\s+`)
 
 func removeDuplicateSpaces(in string) string {
 	return strings.TrimSpace(regexOneSpace.ReplaceAllString(in, " "))
