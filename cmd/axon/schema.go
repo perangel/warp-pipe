@@ -124,7 +124,7 @@ func loadColumnSequences(conn *sqlx.DB) error {
 
 		sequenceColumns[r.TableName+"/"+r.ColumnName] = sequenceName
 	}
-	log.Printf("column sequences found: %v", columnSequences)
+	log.Printf("sequence columns found: %v", sequenceColumns)
 	return nil
 }
 
