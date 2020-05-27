@@ -163,10 +163,10 @@ func updateColumnSequence(conn *sqlx.DB, table string, columns []*warppipe.Chang
 	return nil
 }
 
-// loadUnconnectedSequences loads all sequences in the source database not
-// associated with a table column so they can be automatically updated each
-// INSERT. There is no way to watch sequence value updates, so all must be
-// updated each insert.
+// loadOrphanSequences loads all sequences in the source database not associated
+// with a table column so they can be automatically updated each INSERT. There
+// is no way to watch sequence value updates, so all must be updated each
+// insert.
 func loadOrphanSequences(conn *sqlx.DB) error {
 	var rows []struct {
 		SequenceName string `db:"sequence_name"`
