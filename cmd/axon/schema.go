@@ -141,7 +141,7 @@ func updateColumnSequence(conn *sqlx.DB, table string, columns []*warppipe.Chang
 	// rolls back.
 	// https://www.postgresql.org/docs/9.6/functions-sequence.html
 	for _, c := range columns {
-		sequenceName, ok := getSequenceColumn(table, c.Column)
+		sequenceName, ok := getSequenceColumns(table, c.Column)
 		if !ok {
 			// Column does not have a SERIAL sequence
 			continue
