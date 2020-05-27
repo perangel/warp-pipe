@@ -15,7 +15,7 @@ import (
 var primaryKeys = make(map[string][]string)
 
 // maps serial key columns by table
-var columnSequences = make(map[string]string)
+var sequenceColumns = make(map[string]string)
 
 // lists sequences not associated with any table column
 var orphanSequences []string
