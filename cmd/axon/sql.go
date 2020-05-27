@@ -17,7 +17,7 @@ import (
 var regexSpace = regexp.MustCompile(`\s+`)
 
 func removeDuplicateSpaces(in string) string {
-	return strings.TrimSpace(regexOneSpace.ReplaceAllString(in, " "))
+	return strings.TrimSpace(regexSpace.ReplaceAllString(in, " "))
 }
 
 func prepareQueryArgs(changesetCols []*warppipe.ChangesetColumn) ([]string, []string, map[string]interface{}, error) {
