@@ -212,7 +212,7 @@ func updateOrphanSequences(sourceDB *sqlx.DB, targetDB *sqlx.DB, table string, c
 				$2,
 				true
 			)
-		`, sequenceName, lastVal).Scan(&setVal)
+		`, sequenceName, lastVal)
 		if err != nil {
 			return fmt.Errorf("updateOrphanSequences: error setting value for %s: %w", sequenceName, err)
 		}
