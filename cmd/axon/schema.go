@@ -181,7 +181,7 @@ func loadOrphanSequences(conn *sqlx.DB) error {
 	}
 
 	var connectedSeq = make(map[string]bool)
-	for _, seq := range columnSequences {
+	for _, seq := range sequenceColumns {
 		connectedSeq[seq] = true
 	}
 
