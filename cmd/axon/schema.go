@@ -197,7 +197,7 @@ func loadOrphanSequences(conn *sqlx.DB) error {
 
 func updateOrphanSequences(sourceDB *sqlx.DB, targetDB *sqlx.DB, table string, columns []*warppipe.ChangesetColumn) error {
 	for _, sequenceName := range orphanSequences {
-		var lastVal int64 // PG bigint is 8bit
+		var lastVal int64 // PG bigint is 8 bytes
 
 		err := sourceDB.QueryRow(`
 		SELECT
