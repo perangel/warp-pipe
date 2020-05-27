@@ -76,6 +76,8 @@ func main() {
 		logger.WithError(err).Fatal("unable to check target database version")
 	}
 
+	// TODO: (1) add support for selecting the warp-pipe mode
+	// TODO: (2) only print the source stats if that is audit
 	err = printSourceStats(sourceDBConn)
 	if err != nil {
 		logger.WithError(err).Fatal("unable get source db stats")
