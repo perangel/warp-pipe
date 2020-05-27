@@ -154,7 +154,7 @@ func updateColumnSequence(conn *sqlx.DB, table string, columns []*warppipe.Chang
 				$2,
 				true
 			)
-		`, sequenceName, c.Value).Scan(&setVal)
+		`, sequenceName, c.Value)
 		if err != nil {
 			return fmt.Errorf("updateSerialColumns: %w", err)
 		}
