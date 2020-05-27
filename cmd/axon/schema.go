@@ -39,6 +39,11 @@ func checkTargetVersion(conn *sqlx.DB) error {
 	}
 	if major == 9 && minor < 5 {
 		// <9.5 does not support ON CONFLICT used in row update.
+
+		// TODO: We should be able to support older pre-upsert versions but it's
+		// just going to be a slightly different strategy. We could eat the cost of
+		// a read-compare-update, or alternatively we can blindly do the insert and
+		// handle the conflict as our cue to update.
 		return fmt.Errorf("Target DB Unsupported Version: %s", serverVersion)
 	}
 	log.Printf("Target DB Version: %s", serverVersion)
