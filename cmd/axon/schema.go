@@ -22,7 +22,7 @@ var orphanSequences []string
 
 func checkTargetVersion(conn *sqlx.DB) error {
 	var serverVersion string
-	err := conn.QueryRow("SHOW server_version;").Scan(&serverVersion)
+	err := conn.Get(&serverVersion, "SHOW server_version;")
 	if err != nil {
 		return err
 	}
