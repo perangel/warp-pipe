@@ -199,11 +199,7 @@ func updateOrphanSequences(sourceDB *sqlx.DB, targetDB *sqlx.DB, table string, c
 	for _, sequenceName := range orphanSequences {
 		var lastVal int64 // PG bigint is 8 bytes
 
-		err := sourceDB.QueryRow(`
-		SELECT
-			last_value
-		FROM ` + sequenceName,
-		).Scan(&lastVal)
+		err := sourceDB.Get(&lastVal, "SELECT last_value FROM "+sequenceName)
 		if err != nil {
 			return fmt.Errorf("updateOrphanSequences: error getting last_value for %s: %w", sequenceName, err)
 		}
