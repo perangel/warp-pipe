@@ -122,7 +122,7 @@ func loadColumnSequences(conn *sqlx.DB) error {
 		colDefault := strings.Split(r.ColumnDefault, "'")
 		sequenceName := colDefault[1]
 
-		columnSequences[r.TableName+"/"+r.ColumnName] = sequenceName
+		sequenceColumns[r.TableName+"/"+r.ColumnName] = sequenceName
 	}
 	log.Printf("column sequences found: %v", columnSequences)
 	return nil
