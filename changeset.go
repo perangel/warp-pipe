@@ -3,6 +3,8 @@ package warppipe
 import (
 	"strings"
 	"time"
+
+	"fmt"
 )
 
 // ChangesetKind is the type for changeset kinds
@@ -48,6 +50,14 @@ func (c *Changeset) getColumnValue(values []*ChangesetColumn, column string) (in
 	}
 
 	return nil, false
+}
+
+// String implements Stringer to create a useful string representation of a Changeset.
+func (c *Changeset) String() string {
+	// While c.newValues is an ordered array, the original data source is a JSON
+	// object used as a hashmap, therefore the data is stored as a map in Go
+	// which means the field order in the array is randomized.
+	return fmt.Sprintf("{timestamp: %s, kind: %s, schema: %s, table: %s}", c.Timestamp, c.Kind, c.Schema, c.Table)
 }
 
 // GetNewColumnValue returns the current value for a column and a bool denoting

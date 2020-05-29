@@ -52,9 +52,17 @@ go get github.com/perangel/warp-pipe/...
 
 ## Demo
 
-A demo is available of Changesets. A backend application connects to the Warp
-Pipe Changesets table list, then broadcasts to a front-end application via
-websockets.
+The demo shows how data in a Source DB can be accessed as a stream and used to
+sync to a Target DB.
+
+1. Creates two databases in Docker.
+2. Sets up a schema on the Source DB.
+3. Sets up a schema on the Target DB.
+4. Runs `warp-pipe setup-db` on the Source DB.
+5. Pauses to allow the user to load a front-end web application which loads Warp
+   Pipe Changesets via websockets.
+6. Adds data to the Source DB.
+7. Runs `axon` to sync data from the Source to Target.
 
 Run:
 
