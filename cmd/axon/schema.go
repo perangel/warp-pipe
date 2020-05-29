@@ -52,7 +52,7 @@ func checkTargetVersion(conn *sqlx.DB) error {
 
 func printSourceStats(conn *sqlx.DB) error {
 	var changesetCount int
-	err := conn.Get(changesetCount, "SELECT count(id) FROM warp_pipe.changesets")
+	err := conn.Get(&changesetCount, "SELECT count(id) FROM warp_pipe.changesets")
 	if err != nil {
 		return err
 	}

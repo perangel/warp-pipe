@@ -80,7 +80,7 @@ func main() {
 	// TODO: (2) only print the source stats if that is audit
 	err = printSourceStats(sourceDBConn)
 	if err != nil {
-		logger.WithError(err).Fatal("unable get source db stats")
+		logger.WithError(err).Fatal("unable to get source db stats")
 	}
 
 	err = loadPrimaryKeys(targetDBConn)
