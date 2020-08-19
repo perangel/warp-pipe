@@ -2,7 +2,7 @@ package db
 
 const (
 	// Creates the warp_pipe schema
-	createSchemaWarpPipeSQL = `CREATE SCHEMA warp_pipe`
+	createSchemaWarpPipeSQL = `CREATE SCHEMA IF NOT EXISTS warp_pipe`
 
 	// Revokes all privileges from public on the warp_pipe schema
 	revokeAllOnSchemaWarpPipeSQL = `REVOKE ALL ON SCHEMA warp_pipe FROM public`
@@ -12,7 +12,7 @@ const (
 
 	// Create the warp_pipe.changesets table
 	createTableWarpPipeChangesetsSQL = `
-		CREATE TABLE warp_pipe.changesets (
+		CREATE TABLE IF NOT EXISTS warp_pipe.changesets (
 			id BIGSERIAL PRIMARY KEY,
 			ts TIMESTAMPTZ DEFAULT NOW() NOT NULL,
 			action TEXT NOT NULL CHECK (action IN ('INSERT', 'UPDATE', 'DELETE')),
@@ -27,16 +27,16 @@ const (
 	revokeAllOnWarpPipeChangesetsSQL = `REVOKE ALL ON warp_pipe.changesets FROM public`
 
 	// Create an index for warp_pipe.changesets(ts)
-	createIndexChangesetsTimestampSQL = `CREATE INDEX changesets_ts_idx ON warp_pipe.changesets (ts)`
+	createIndexChangesetsTimestampSQL = `CREATE INDEX IF NOT EXISTS changesets_ts_idx ON warp_pipe.changesets (ts)`
 
 	// Create an index for warp_pipe.changesets(action)
-	createIndexChangesetsActionSQL = `CREATE INDEX changesets_action_idx ON warp_pipe.changesets (action)`
+	createIndexChangesetsActionSQL = `CREATE INDEX IF NOT EXISTS changesets_action_idx ON warp_pipe.changesets (action)`
 
 	// Create an index for warp_pipe.changesets(schema_name)
-	createIndexChangesetsSchemaNameSQL = `CREATE INDEX changesets_schema_name_idx ON warp_pipe.changesets (schema_name)`
+	createIndexChangesetsSchemaNameSQL = `CREATE INDEX IF NOT EXISTS changesets_schema_name_idx ON warp_pipe.changesets (schema_name)`
 
 	// Create an index for warp_pipe.changesets(table_name)
-	createIndexChangesetsTableNameSQL = `CREATE INDEX changesets_table_name_idx ON warp_pipe.changesets (table_name)`
+	createIndexChangesetsTableNameSQL = `CREATE INDEX IF NOT EXISTS changesets_table_name_idx ON warp_pipe.changesets (table_name)`
 
 	// Create warp_pipe.on_modify() trigger function
 	createOnModifyTriggerFuncSQL = `
