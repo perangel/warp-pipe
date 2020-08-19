@@ -1,0 +1,67 @@
+# github.com/cockroachdb/apd v1.1.0
+## explicit
+# github.com/davecgh/go-spew v1.1.1
+github.com/davecgh/go-spew/spew
+# github.com/gorilla/websocket v1.4.2
+## explicit
+github.com/gorilla/websocket
+# github.com/inconshreveable/mousetrap v1.0.0
+## explicit
+github.com/inconshreveable/mousetrap
+# github.com/jackc/fake v0.0.0-20150926172116-812a484cc733
+## explicit
+# github.com/jackc/pgx v3.3.0+incompatible
+## explicit
+github.com/jackc/pgx
+github.com/jackc/pgx/chunkreader
+github.com/jackc/pgx/internal/sanitize
+github.com/jackc/pgx/pgio
+github.com/jackc/pgx/pgproto3
+github.com/jackc/pgx/pgtype
+# github.com/jmoiron/sqlx v1.2.0
+## explicit
+github.com/jmoiron/sqlx
+github.com/jmoiron/sqlx/reflectx
+# github.com/kelseyhightower/envconfig v1.3.0
+## explicit
+github.com/kelseyhightower/envconfig
+# github.com/konsorten/go-windows-terminal-sequences v1.0.2
+## explicit
+github.com/konsorten/go-windows-terminal-sequences
+# github.com/lib/pq v1.3.0
+## explicit
+github.com/lib/pq
+github.com/lib/pq/oid
+github.com/lib/pq/scram
+# github.com/pkg/errors v0.8.1
+## explicit
+github.com/pkg/errors
+# github.com/pmezard/go-difflib v1.0.0
+github.com/pmezard/go-difflib/difflib
+# github.com/satori/go.uuid v1.2.0
+## explicit
+# github.com/shopspring/decimal v1.2.0
+## explicit
+# github.com/sirupsen/logrus v1.4.1
+## explicit
+github.com/sirupsen/logrus
+# github.com/spf13/cobra v0.0.3
+## explicit
+github.com/spf13/cobra
+# github.com/spf13/pflag v1.0.3
+## explicit
+github.com/spf13/pflag
+# github.com/stretchr/testify v1.5.1
+## explicit
+github.com/stretchr/testify/assert
+# golang.org/x/sys v0.0.0-20190415145633-3fd5a3612ccd
+## explicit
+golang.org/x/sys/unix
+# google.golang.org/appengine v1.6.6
+## explicit
+# gopkg.in/olahol/melody.v1 v1.0.0-20170518105555-d52139073376
+## explicit
+gopkg.in/olahol/melody.v1
+# gopkg.in/yaml.v2 v2.2.8
+## explicit
+gopkg.in/yaml.v2
