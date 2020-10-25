@@ -43,7 +43,7 @@ type NotifyListener struct {
 	errCh                  chan error
 }
 
-// NewNotifyListener returne a new NotifyListener.
+// NewNotifyListener returns a new NotifyListener.
 func NewNotifyListener(opts ...NotifyOption) *NotifyListener {
 	l := &NotifyListener{
 		logger:       log.WithFields(log.Fields{"component": "listener"}),
@@ -158,7 +158,7 @@ func (l *NotifyListener) processMessage(msg *pgx.Notification) {
 
 	event, err := l.store.GetByID(context.Background(), eventID)
 	if err != nil {
-		log.WithError(err).WithField("changeset_id", parts[0]).Error("failed to get changset from store")
+		log.WithError(err).WithField("changeset_id", parts[0]).Error("failed to get changeset from store")
 		l.errCh <- err
 	}
 

@@ -10,7 +10,7 @@ import (
 // ChangesetKind is the type for changeset kinds
 type ChangesetKind string
 
-// ChangsetKind constants
+// ChangesetKind constants
 const (
 	ChangesetKindInsert ChangesetKind = "insert"
 	ChangesetKindUpdate ChangesetKind = "update"
