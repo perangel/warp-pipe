@@ -83,22 +83,22 @@ Usage:
 Available Commands:
   help        Help about any command
   setup-db    Setup the source database
-  teardown-db Teardown the `warp_pipe` schema
+  teardown-db Teardown the `warp_pipe` schema 
 
 Flags:
-      --start-from-lsn int         stream all changes starting from the provided LSN (default -1)
-      --start-from-id int          stream all changes starting from the provided changeset ID (default -1)
-      --start-from-ts int          stream all changes starting from the provided timestamp (default -1)
-  -M, --replication-mode string    replication mode (default "lr")
-  -i, --ignore-tables strings      tables to ignore during replication
-  -w, --whitelist-tables strings   tables to include during replication
-  -H, --db-host string             database host
-  -d, --db-name string             database name
-  -P, --db-pass string             database password
-  -p, --db-port int                database port
-  -U, --db-user string             database user
-  -L, --log-level string           log level (default "info")
-  -h, --help                       help for warp-pipe
+      --start-from-id int              stream all changes starting from the provided changeset ID (default -1)
+      --start-from-ts int              stream all changes starting from the provided timestamp (default -1)
+  -M, --replication-mode string        replication mode (default "lr")
+      --replication-slot-name string   replication slot name
+  -i, --ignore-tables strings          tables to ignore during replication
+  -w, --whitelist-tables strings       tables to include during replication
+  -H, --db-host string                 database host
+  -d, --db-name string                 database name
+  -P, --db-pass string                 database password
+  -p, --db-port int                    database port
+  -U, --db-user string                 database user
+  -L, --log-level string               log level (default "info")
+  -h, --help                           help for warp-pipe
 
 Use "warp-pipe [command] --help" for more information about a command.
 ```
@@ -107,7 +107,6 @@ Use "warp-pipe [command] --help" for more information about a command.
 
 | Flag                   | Environment Variable | Description                                                                                                    | Mode  |
 | ---------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------- | ----- |
-| --start-from-lsn       | START_FROM_LSN       | Sets the logical sequence number from which to start logical replication                                       | lr    |
 | --start-from-id        | START_FROM_ID        | Sets the changeset ID from which to start relaying changesets                                                  | audit |
 | --start-from-ts        | START_FROM_TIMESTAMP | Sets the timestamp from which to start replaying changesets                                                    | audit |
 | -M, --replication-mode | REPLICATION_MODE     | Sets the replication mode to one of `audit` or `lr` (logical replication) (see: [requirements](#requirements)) | \*    |
