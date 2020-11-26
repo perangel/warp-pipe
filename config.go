@@ -36,9 +36,6 @@ type Config struct {
 	// Specifies the replication slot name to be used. (LR mode only)
 	ReplicationSlotName string `envconfig:"REPLICATION_SLOT_NAME"`
 
-	// Start replication from the specified logical sequence number. (LR mode only)
-	StartFromLSN uint64 `envconfig:"START_FROM_LSN"`
-
 	// Start replication from the specified changeset ID. (Audit mode only)
 	StartFromID int64 `envconfig:"START_FROM_ID"`
 

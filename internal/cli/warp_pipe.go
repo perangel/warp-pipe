@@ -16,18 +16,18 @@ import (
 
 // Flags
 var (
-	dbHost             string
-	dbPort             int
-	dbName             string
-	dbUser             string
-	dbPass             string
-	replicationMode    string
-	ignoreTables       []string
-	whitelistTables    []string
-	startFromID        int64
-	startFromTimestamp int64
-	startFromLSN       int64
-	logLevel           string
+	dbHost              string
+	dbPort              int
+	dbName              string
+	dbUser              string
+	dbPass              string
+	replicationMode     string
+	ignoreTables        []string
+	whitelistTables     []string
+	startFromID         int64
+	startFromTimestamp  int64
+	replicationSlotName string
+	logLevel            string
 )
 
 const (
@@ -42,10 +42,10 @@ func init() {
 	WarpPipeCmd.PersistentFlags().StringVarP(&dbName, "db-name", "d", "", "database name")
 	WarpPipeCmd.PersistentFlags().StringVarP(&dbUser, "db-user", "U", "", "database user")
 	WarpPipeCmd.PersistentFlags().StringVarP(&dbPass, "db-pass", "P", "", "database password")
-	WarpPipeCmd.Flags().Int64Var(&startFromLSN, "start-from-lsn", -1, "stream all changes starting from the provided LSN")
 	WarpPipeCmd.Flags().Int64Var(&startFromID, "start-from-id", -1, "stream all changes starting from the provided changeset ID")
 	WarpPipeCmd.Flags().Int64Var(&startFromTimestamp, "start-from-ts", -1, "stream all changes starting from the provided timestamp")
 	WarpPipeCmd.Flags().StringVarP(&replicationMode, "replication-mode", "M", replicationModeLR, "replication mode")
+	WarpPipeCmd.Flags().StringVar(&replicationSlotName, "replication-slot-name", "", "replication slot name")
 	WarpPipeCmd.Flags().StringSliceVarP(&ignoreTables, "ignore-tables", "i", nil, "tables to ignore during replication")
 	WarpPipeCmd.Flags().StringSliceVarP(&whitelistTables, "whitelist-tables", "w", nil, "tables to include during replication")
 	WarpPipeCmd.Flags().SortFlags = false
