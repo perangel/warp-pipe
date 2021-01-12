@@ -1,7 +1,7 @@
-package main
+package warppipe
 
-// Config store configuration for axon
-type Config struct {
+// AxonConfig store configuration for axon
+type AxonConfig struct {
 	// source db credentials
 	SourceDBHost string `envconfig:"source_db_host"`
 	SourceDBPort int    `envconfig:"source_db_port"`

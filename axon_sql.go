@@ -1,17 +1,15 @@
-package main
+package warppipe
 
 import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"reflect"
 	"regexp"
 	"strings"
 
-	"reflect"
-
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
-	warppipe "github.com/perangel/warp-pipe"
 )
 
 var regexSpace = regexp.MustCompile(`\s+`)
@@ -20,7 +18,7 @@ func removeDuplicateSpaces(in string) string {
 	return strings.TrimSpace(regexSpace.ReplaceAllString(in, " "))
 }
 
-func prepareQueryArgs(changesetCols []*warppipe.ChangesetColumn) ([]string, []string, map[string]interface{}, error) {
+func prepareQueryArgs(changesetCols []*ChangesetColumn) ([]string, []string, map[string]interface{}, error) {
 	var cols []string
 	var colArgs []string
 	values := make(map[string]interface{}, len(cols))
@@ -62,7 +60,7 @@ func preparePrimaryKeyWhereClause(table string, primaryKey []string) string {
 	return strings.Join(clauses, " AND ")
 }
 
-func prepareInsertQuery(schema string, change *warppipe.Changeset) (string, map[string]interface{}) {
+func prepareInsertQuery(schema string, change *Changeset) (string, map[string]interface{}) {
 	cols, colArgs, values, err := prepareQueryArgs(change.NewValues)
 	if err != nil {
 		// TODO: Is failure the best option here? Probably no way to safely save anything.
@@ -80,7 +78,7 @@ func prepareInsertQuery(schema string, change *warppipe.Changeset) (string, map[
 	return sql, values
 }
 
-func prepareUpdateQuery(schema string, primaryKey []string, change *warppipe.Changeset) (string, map[string]interface{}) {
+func prepareUpdateQuery(schema string, primaryKey []string, change *Changeset) (string, map[string]interface{}) {
 	cols, colArgs, values, err := prepareQueryArgs(change.NewValues)
 	if err != nil {
 		log.Fatalf("prepareQueryArgs: error in changeset %s: %s", change, err)
@@ -111,7 +109,7 @@ func prepareUpdateQuery(schema string, primaryKey []string, change *warppipe.Cha
 	return sql, values
 }
 
-func prepareDeleteQuery(schema string, primaryKey []string, change *warppipe.Changeset) (string, map[string]interface{}) {
+func prepareDeleteQuery(schema string, primaryKey []string, change *Changeset) (string, map[string]interface{}) {
 	_, _, values, err := prepareQueryArgs(change.OldValues)
 	if err != nil {
 		log.Fatalf("prepareQueryArgs: error in changeset %s: %s", change, err)
@@ -127,7 +125,7 @@ func prepareDeleteQuery(schema string, primaryKey []string, change *warppipe.Cha
 	return sql, values
 }
 
-func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, schema string, change *warppipe.Changeset) error {
+func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, schema string, change *Changeset) error {
 	query, args := prepareInsertQuery(schema, change)
 	_, err := targetDB.NamedExec(query, args)
 	if err != nil {
@@ -165,7 +163,7 @@ func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, schema string, change *warp
 	return nil
 }
 
-func updateRow(targetDB *sqlx.DB, schema string, change *warppipe.Changeset, primaryKey []string) error {
+func updateRow(targetDB *sqlx.DB, schema string, change *Changeset, primaryKey []string) error {
 	query, args := prepareUpdateQuery(schema, primaryKey, change)
 	_, err := targetDB.NamedExec(query, args)
 	if err != nil {
@@ -185,7 +183,7 @@ func updateRow(targetDB *sqlx.DB, schema string, change *warppipe.Changeset, pri
 	return nil
 }
 
-func deleteRow(targetDB *sqlx.DB, schema string, change *warppipe.Changeset, primaryKey []string) error {
+func deleteRow(targetDB *sqlx.DB, schema string, change *Changeset, primaryKey []string) error {
 	query, values := prepareDeleteQuery(schema, primaryKey, change)
 	_, err := targetDB.NamedExec(query, values)
 	if err != nil {
