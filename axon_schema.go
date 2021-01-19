@@ -1,4 +1,4 @@
-package main
+package warppipe
 
 import (
 	"fmt"
@@ -8,7 +8,6 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
-	warppipe "github.com/perangel/warp-pipe"
 )
 
 // maps primary key columns by table
@@ -87,7 +86,7 @@ func loadPrimaryKeys(conn *sqlx.DB) error {
 	return nil
 }
 
-func getPrimaryKeyForChange(change *warppipe.Changeset) ([]string, error) {
+func getPrimaryKeyForChange(change *Changeset) ([]string, error) {
 	col, ok := primaryKeys[change.Table]
 	if !ok {
 		return nil, fmt.Errorf("no primary key in mapping for table `%s`", change.Table)
@@ -135,7 +134,7 @@ func getSequenceColumns(table, column string) (string, bool) {
 	return "", false
 }
 
-func updateColumnSequence(conn *sqlx.DB, table string, columns []*warppipe.ChangesetColumn) error {
+func updateColumnSequence(conn *sqlx.DB, table string, columns []*ChangesetColumn) error {
 	// Why no transaction? From the manual: Because sequences are
 	// non-transactional, changes made by setval are not undone if the transaction
 	// rolls back.
@@ -195,7 +194,7 @@ func loadOrphanSequences(conn *sqlx.DB) error {
 	return nil
 }
 
-func updateOrphanSequences(sourceDB *sqlx.DB, targetDB *sqlx.DB, table string, columns []*warppipe.ChangesetColumn) error {
+func updateOrphanSequences(sourceDB *sqlx.DB, targetDB *sqlx.DB, table string, columns []*ChangesetColumn) error {
 	for _, sequenceName := range orphanSequences {
 		var lastVal int64 // PG bigint is 8 bytes
 
