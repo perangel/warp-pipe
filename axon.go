@@ -23,11 +23,15 @@ func getDBConnString(host string, port int, name, user, pass string) string {
 	)
 }
 
+// Axon listens for Warp-Pipe change sets events. Then converts them into SQL statements, executing
+// them on the remote target.
 type Axon struct {
 	Config *AxonConfig
 	Logger *logrus.Logger
+	shutdownCh chan os.Signal
 }
 
+// NewAxonConfigFromEnv loads the Axon configuration from environment variables.
 func NewAxonConfigFromEnv() (*AxonConfig, error) {
 	config := AxonConfig{}
 	err := envconfig.Process("axon", &config)
@@ -37,9 +41,13 @@ func NewAxonConfigFromEnv() (*AxonConfig, error) {
 	return &config, nil
 }
 
+// Run the Axon worker.
 func (a *Axon) Run() {
-	shutdownCh := make(chan os.Signal)
-	signal.Notify(shutdownCh, os.Interrupt, syscall.SIGTERM)
+	if a.shutdownCh == nil {
+		a.shutdownCh = make(chan os.Signal)
+	}
+
+	signal.Notify(a.shutdownCh, os.Interrupt, syscall.SIGTERM)
 
 	if a.Logger == nil {
 		a.Logger = logrus.New()
@@ -116,7 +124,7 @@ func (a *Axon) Run() {
 	changes, errs := wp.ListenForChanges(ctx)
 
 	go func() {
-		<-shutdownCh
+		<-a.shutdownCh
 		a.Logger.Error("shutting down...")
 		cancel()
 		wp.Close()
@@ -136,6 +144,11 @@ func (a *Axon) Run() {
 
 		}
 	}
+}
+
+// Shutdown the Axon worker.
+func (a *Axon) Shutdown() {
+	a.shutdownCh <- syscall.SIGTERM
 }
 
 func (a *Axon) processChange(sourceDB *sqlx.DB, targetDB *sqlx.DB, schema string, change *Changeset) {
