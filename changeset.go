@@ -34,6 +34,7 @@ func ParseChangesetKind(kind string) ChangesetKind {
 
 // Changeset represents a changeset for a record on a Postgres table.
 type Changeset struct {
+	ID        int64              `json:"id"`
 	Kind      ChangesetKind      `json:"kind"`
 	Schema    string             `json:"schema"`
 	Table     string             `json:"table"`
