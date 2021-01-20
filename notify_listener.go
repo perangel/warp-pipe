@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx"
-	"github.com/perangel/warp-pipe/internal/store"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/perangel/warp-pipe/internal/store"
 )
 
 // NotifyOption is a NotifyListener option function
@@ -167,6 +168,7 @@ func (l *NotifyListener) processMessage(msg *pgx.Notification) {
 
 func (l *NotifyListener) processChangeset(event *store.Event) {
 	cs := &Changeset{
+		ID:        event.ID,
 		Kind:      ParseChangesetKind(event.Action),
 		Schema:    event.SchemaName,
 		Table:     event.TableName,

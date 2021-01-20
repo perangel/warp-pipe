@@ -222,6 +222,7 @@ func (l *LogicalReplicationListener) processMessage(msg *pgx.ReplicationMessage)
 
 	for _, change := range w2jmsg.Changes {
 		cs := &Changeset{
+			ID:     change.ID,
 			Kind:   ParseChangesetKind(change.Kind),
 			Schema: change.Schema,
 			Table:  change.Table,
