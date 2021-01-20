@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/jackc/pgx"
 	warppipe "github.com/perangel/warp-pipe"
 	log "github.com/sirupsen/logrus"
 
@@ -72,13 +73,26 @@ var WarpPipeCmd = &cobra.Command{
 			return err
 		}
 
-		wp := warppipe.NewWarpPipe(
+		connConfig := &pgx.ConnConfig{
+			Host:     config.Database.Host,
+			Port:     uint16(config.Database.Port),
+			User:     config.Database.User,
+			Password: config.Database.Password,
+			Database: config.Database.Database,
+		}
+
+		wp, err := warppipe.NewWarpPipe(
+			connConfig,
 			listener,
 			warppipe.IgnoreTables(config.IgnoreTables),
 			warppipe.WhitelistTables(config.WhitelistTables),
 			warppipe.LogLevel(config.LogLevel),
 		)
-		if err := wp.Open(&config.Database); err != nil {
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if err := wp.Open(); err != nil {
 			log.Fatal(err)
 		}
 

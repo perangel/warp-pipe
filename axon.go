@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/jackc/pgx"
 	"github.com/jmoiron/sqlx"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
@@ -26,8 +27,8 @@ func getDBConnString(host string, port int, name, user, pass string) string {
 // Axon listens for Warp-Pipe change sets events. Then converts them into SQL statements, executing
 // them on the remote target.
 type Axon struct {
-	Config *AxonConfig
-	Logger *logrus.Logger
+	Config     *AxonConfig
+	Logger     *logrus.Logger
 	shutdownCh chan os.Signal
 }
 
@@ -106,18 +107,27 @@ func (a *Axon) Run() {
 
 	// create a notify listener and start from changeset id 1
 	listener := NewNotifyListener(StartFromID(0))
-	wp := NewWarpPipe(listener)
-	err = wp.Open(&DBConfig{
+
+	connConfig := pgx.ConnConfig{
 		Host:     a.Config.SourceDBHost,
-		Port:     a.Config.SourceDBPort,
-		Database: a.Config.SourceDBName,
+		Port:     uint16(a.Config.SourceDBPort),
 		User:     a.Config.SourceDBUser,
 		Password: a.Config.SourceDBPass,
-	})
+		Database: a.Config.SourceDBName,
+	}
+
+	wp, err := NewWarpPipe(&connConfig, listener)
 	if err != nil {
 		a.Logger.WithError(err).
 			WithField("component", "warp_pipe").
-			Fatal("unable to connect to source database")
+			Fatal("failed to establish a warp-pipe")
+	}
+
+	err = wp.Open()
+	if err != nil {
+		a.Logger.WithError(err).
+			WithField("component", "warp_pipe").
+			Fatal("failed to dial the listener")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

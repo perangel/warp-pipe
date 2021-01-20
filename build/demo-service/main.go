@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/jackc/pgx"
+
 	warppipe "github.com/perangel/warp-pipe"
 
 	"gopkg.in/olahol/melody.v1"
@@ -35,9 +37,22 @@ func main() {
 		log.Fatal(err)
 	}
 
+	connConfig := &pgx.ConnConfig{
+		Host:     cfg.Database.Host,
+		Port:     uint16(cfg.Database.Port),
+		User:     cfg.Database.User,
+		Password: cfg.Database.Password,
+		Database: cfg.Database.Database,
+	}
+
 	listener := warppipe.NewLogicalReplicationListener()
-	wp := warppipe.NewWarpPipe(listener)
-	err = wp.Open(&cfg.Database)
+
+	wp, err := warppipe.NewWarpPipe(connConfig, listener)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = wp.Open()
 	if err != nil {
 		log.Fatal(err)
 	}
