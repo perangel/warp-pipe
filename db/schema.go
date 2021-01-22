@@ -82,7 +82,6 @@ func Prepare(conn *pgx.Conn, schemas []string, includeTables, excludeTables []st
 	}
 
 	for _, table := range registerTables {
-		log.Infof("registering trigger for table %s", table)
 		err = registerTrigger(tx, table)
 		if err != nil {
 			pgErr, ok := err.(pgx.PgError)
@@ -190,13 +189,27 @@ func getTablesToRegister(conn *pgx.Conn, schemas []string, excludeTables []strin
 func registerTrigger(tx *pgx.Tx, table string) error {
 	// trigger name is <schema>__<table>_changesets
 	triggerName := strings.ReplaceAll(table, ".", "__")
-	_, err := tx.Exec(fmt.Sprintf(`
-		CREATE TRIGGER %s_changesets
-		AFTER
-			INSERT OR UPDATE OR DELETE
-		ON %s
-		FOR EACH ROW EXECUTE PROCEDURE warp_pipe.on_modify()`, triggerName, table),
-	)
+	sql := fmt.Sprintf(`
+		DO  
+		$$  
+		BEGIN  
+			IF NOT EXISTS(
+                 SELECT * FROM(
+					 SELECT trigger_name AS name, concat_ws('.', event_object_schema, event_object_table) AS table 
+					 FROM information_schema.triggers
+                 ) AS triggers
+				 WHERE triggers.name = '%s_changesets'
+				 AND triggers.table = '%s'  
+			)  
+			THEN
+				CREATE TRIGGER %s_changesets
+				AFTER INSERT OR UPDATE OR DELETE
+				ON %s
+				FOR EACH ROW EXECUTE PROCEDURE warp_pipe.on_modify();
+			END IF ;
+		END;  
+		$$`, triggerName, table, triggerName, table)
+	_, err := tx.Exec(sql)
 
 	return err
 }
