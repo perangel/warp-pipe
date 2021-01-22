@@ -2,6 +2,7 @@ package warppipe
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/jackc/pgx"
@@ -52,6 +53,8 @@ func LogLevel(level string) Option {
 // WarpPipe is a daemon that listens for database changes and transmits them
 // somewhere else.
 type WarpPipe struct {
+	connConfig      *pgx.ConnConfig
+	conn            *pgx.Conn
 	listener        Listener
 	ignoreTables    []string
 	whitelistTables []string
@@ -61,31 +64,29 @@ type WarpPipe struct {
 }
 
 // NewWarpPipe initializes and returns a new WarpPipe.
-func NewWarpPipe(listener Listener, opts ...Option) *WarpPipe {
+func NewWarpPipe(connConfig *pgx.ConnConfig, listener Listener, opts ...Option) (*WarpPipe, error) {
+	conn, err := pgx.Connect(*connConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to the source database: %w", err)
+	}
+
 	w := &WarpPipe{
-		listener: listener,
-		logger:   log.New(),
+		connConfig: connConfig,
+		conn:       conn,
+		listener:   listener,
+		logger:     log.New(),
 	}
 
 	for _, opt := range opts {
 		opt(w)
 	}
 
-	return w
+	return w, nil
 }
 
 // Open dials the listener's connection to the database.
-func (w *WarpPipe) Open(connConfig *DBConfig) error {
-	pgxConnCfg := &pgx.ConnConfig{
-		Host:     connConfig.Host,
-		Port:     uint16(connConfig.Port),
-		User:     connConfig.User,
-		Password: connConfig.Password,
-		Database: connConfig.Database,
-	}
-
-	err := w.listener.Dial(pgxConnCfg)
-	return err
+func (w *WarpPipe) Open() error {
+	return w.listener.Dial(w.connConfig)
 }
 
 // ListenForChanges starts the listener listening for database changesets.
