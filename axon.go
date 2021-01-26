@@ -45,7 +45,7 @@ func NewAxonConfigFromEnv() (*AxonConfig, error) {
 // Run the Axon worker.
 func (a *Axon) Run() {
 	if a.shutdownCh == nil {
-		a.shutdownCh = make(chan os.Signal)
+		a.shutdownCh = make(chan os.Signal, 1)
 	}
 
 	signal.Notify(a.shutdownCh, os.Interrupt, syscall.SIGTERM)
@@ -133,18 +133,15 @@ func (a *Axon) Run() {
 	ctx, cancel := context.WithCancel(context.Background())
 	changes, errs := wp.ListenForChanges(ctx)
 
-	go func() {
-		<-a.shutdownCh
-		a.Logger.Error("shutting down...")
-		cancel()
-		wp.Close()
-		sourceDBConn.Close()
-		targetDBConn.Close()
-		os.Exit(0)
-	}()
-
 	for {
 		select {
+		case <-a.shutdownCh:
+			a.Logger.Error("shutting down...")
+			cancel()
+			wp.Close()
+			sourceDBConn.Close()
+			targetDBConn.Close()
+			return
 		case err := <-errs:
 			a.Logger.WithError(err).
 				WithField("component", "warp_pipe").
