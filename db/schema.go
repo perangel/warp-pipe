@@ -71,14 +71,9 @@ func Prepare(conn *pgx.Conn, schemas []string, includeTables, excludeTables []st
 		return errCreateTriggerFunc
 	}
 
-	var registerTables []string
-	if includeTables != nil {
-		registerTables = includeTables
-	} else {
-		registerTables, err = getTablesToRegister(conn, schemas, excludeTables)
-		if err != nil {
-			return err
-		}
+	registerTables, err := GenerateTablesList(conn, schemas, includeTables, excludeTables)
+	if err != nil {
+		return err
 	}
 
 	for _, table := range registerTables {
@@ -154,32 +149,48 @@ func createTriggerFunc(tx *pgx.Tx) error {
 	return err
 }
 
-func getTablesToRegister(conn *pgx.Conn, schemas []string, excludeTables []string) ([]string, error) {
-	exclude := make(map[string]struct{})
-	// TODO: support patterns
-	for _, t := range excludeTables {
-		exclude[t] = struct{}{}
+// GenerateTablesList using the includes and excludes list. If no tables are specified in the includes list,
+// obtain the complete list from Postgres using the supplied schemas. If any of the included tables are listed
+// as excluded, remove them from the list.
+func GenerateTablesList(conn *pgx.Conn, schemas, includeTables, excludeTables []string) ([]string, error) {
+	tableRegister := make(map[string]bool)
+
+	if len(includeTables) > 0 {
+		for _, table := range includeTables {
+			tableRegister[table] = true
+		}
+	} else {
+		for _, schema := range schemas {
+			rows, err := conn.Query(`
+		SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = $1`, schema,
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			for rows.Next() {
+				var t string
+				err = rows.Scan(&t)
+				if err != nil {
+					return nil, err
+				}
+
+				table := fmt.Sprintf("%s.%s", schema, t)
+				tableRegister[table] = true
+			}
+		}
 	}
 
-	var tables []string
-	for _, schema := range schemas {
-		rows, err := conn.Query(`
-		SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = $1`, schema,
-		)
-		if err != nil {
-			return nil, err
+	for _, table := range excludeTables {
+		if _, ok := tableRegister[table]; ok {
+			tableRegister[table] = false
 		}
+	}
 
-		for rows.Next() {
-			var t string
-			err = rows.Scan(&t)
-			if err != nil {
-				return nil, nil
-			}
-
-			if _, ok := exclude[t]; !ok {
-				tables = append(tables, fmt.Sprintf("%s.%s", schema, t))
-			}
+	tables := make([]string, 0)
+	for table, include := range tableRegister {
+		if include {
+			tables = append(tables, table)
 		}
 	}
 
