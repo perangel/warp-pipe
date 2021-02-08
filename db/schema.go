@@ -9,6 +9,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type Table struct {
+	Name       string
+	Schema     string
+	PKeyName   string
+	PKeyFields map[int]string
+}
+
 var (
 	errCreateSchema        = errors.New("error creating `warp_pipe` schema")
 	errDuplicateSchema     = errors.New("`warp_pipe` schema already exists")
@@ -77,7 +84,7 @@ func Prepare(conn *pgx.Conn, schemas []string, includeTables, excludeTables []st
 	}
 
 	for _, table := range registerTables {
-		err = registerTrigger(tx, table)
+		err = registerTrigger(tx, table.Schema, table.Name)
 		if err != nil {
 			pgErr, ok := err.(pgx.PgError)
 			if ok {
@@ -152,7 +159,7 @@ func createTriggerFunc(tx *pgx.Tx) error {
 // GenerateTablesList using the includes and excludes list. If no tables are specified in the includes list,
 // obtain the complete list from Postgres using the supplied schemas. If any of the included tables are listed
 // as excluded, remove them from the list.
-func GenerateTablesList(conn *pgx.Conn, schemas, includeTables, excludeTables []string) ([]string, error) {
+func GenerateTablesList(conn *pgx.Conn, schemas, includeTables, excludeTables []string) ([]Table, error) {
 	tableRegister := make(map[string]bool)
 
 	if len(includeTables) > 0 {
@@ -187,19 +194,63 @@ func GenerateTablesList(conn *pgx.Conn, schemas, includeTables, excludeTables []
 		}
 	}
 
-	tables := make([]string, 0)
-	for table, include := range tableRegister {
+	tables := make([]Table, 0)
+	for tableName, include := range tableRegister {
 		if include {
-			tables = append(tables, table)
+			tableDetails, err := getTableDetails(conn, tableName)
+			if err != nil {
+				return nil, err
+			}
+			tables = append(tables, *tableDetails)
 		}
 	}
 
 	return tables, nil
 }
 
-func registerTrigger(tx *pgx.Tx, table string) error {
+func getTableDetails(conn *pgx.Conn, name string) (*Table, error) {
+	var table Table
+	nameArr := strings.SplitN(name, ".", 2)
+	if len(nameArr) > 1 {
+		table.Schema = nameArr[0]
+		table.Name = nameArr[1]
+	} else {
+		table.Schema = "public"
+		table.Name = nameArr[0]
+	}
+	table.PKeyFields = make(map[int]string)
+	rows, err := conn.Query(`
+		SELECT 
+			tco.constraint_name,
+			kcu.ordinal_position as position,
+			kcu.column_name as key_column
+		from information_schema.table_constraints tco
+		join information_schema.key_column_usage kcu
+  			on kcu.constraint_name = tco.constraint_name
+  			and kcu.constraint_schema = tco.constraint_schema
+  			and kcu.constraint_name = tco.constraint_name
+		where tco.constraint_type = 'PRIMARY KEY' and kcu.table_schema = $1 and  kcu.table_name =  $2
+		order by kcu.table_schema,
+	  		kcu.table_name,
+	  		position;`, table.Schema, table.Name,
+	)
+
+	for rows.Next() {
+		var constraintName, column string
+		var position int
+		err = rows.Scan(&constraintName, &position, &column)
+		if err != nil {
+			return nil, err
+		}
+		table.PKeyName = constraintName
+		table.PKeyFields[position] = column
+	}
+	return &table, nil
+}
+
+func registerTrigger(tx *pgx.Tx, schema string, table string) error {
 	// trigger name is <schema>__<table>_changesets
-	triggerName := strings.ReplaceAll(table, ".", "__")
+	triggerName := fmt.Sprintf("%s__%s_changesets", schema, table)
 	sql := fmt.Sprintf(`
 		DO  
 		$$  
@@ -209,17 +260,17 @@ func registerTrigger(tx *pgx.Tx, table string) error {
 					 SELECT trigger_name AS name, concat_ws('.', event_object_schema, event_object_table) AS table 
 					 FROM information_schema.triggers
                  ) AS triggers
-				 WHERE triggers.name = '%s_changesets'
-				 AND triggers.table = '%s'  
+				 WHERE triggers.name = '%s'
+				 AND triggers.table = '%s.%s'  
 			)  
 			THEN
-				CREATE TRIGGER %s_changesets
+				CREATE TRIGGER %s
 				AFTER INSERT OR UPDATE OR DELETE
-				ON "%s"
+				ON "%s"."%s"
 				FOR EACH ROW EXECUTE PROCEDURE warp_pipe.on_modify();
 			END IF ;
 		END;  
-		$$`, triggerName, table, triggerName, table)
+		$$`, triggerName, schema, table, triggerName, schema, table)
 	_, err := tx.Exec(sql)
 
 	return err
