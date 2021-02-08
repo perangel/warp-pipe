@@ -54,7 +54,7 @@ func prepareQueryArgs(changesetCols []*ChangesetColumn) ([]string, []string, map
 func preparePrimaryKeyWhereClause(table string, primaryKey []string) string {
 	clauses := make([]string, len(primaryKey))
 	for i, c := range primaryKey {
-		clauses[i] = fmt.Sprintf("%s.%s = :%s", table, c, c)
+		clauses[i] = fmt.Sprintf(`"%s".%s = :%s`, table, c, c)
 	}
 
 	return strings.Join(clauses, " AND ")
@@ -68,7 +68,7 @@ func prepareInsertQuery(schema string, change *Changeset) (string, map[string]in
 	}
 
 	sql := fmt.Sprintf(
-		"INSERT INTO %s.%s (%s) VALUES (%s)",
+		`INSERT INTO "%s"."%s" (%s) VALUES (%s)`,
 		schema,
 		change.Table,
 		strings.Join(cols, ","),
@@ -90,11 +90,11 @@ func prepareUpdateQuery(schema string, primaryKey []string, change *Changeset) (
 
 	primaryKeyWhereClauses := make([]string, len(primaryKey))
 	for i, c := range primaryKey {
-		primaryKeyWhereClauses[i] = fmt.Sprintf("%s.%s = :%s", change.Table, c, c)
+		primaryKeyWhereClauses[i] = fmt.Sprintf(`"%s".%s = :%s`, change.Table, c, c)
 	}
 
 	sql := fmt.Sprintf(`
-		INSERT INTO %s.%s (%s) VALUES (%s)
+		INSERT INTO "%s"."%s" (%s) VALUES (%s)
 			ON CONFLICT (%s)
 			DO UPDATE SET %s WHERE %s`,
 		schema,
@@ -116,7 +116,7 @@ func prepareDeleteQuery(schema string, primaryKey []string, change *Changeset) (
 	}
 
 	sql := fmt.Sprintf(
-		"DELETE FROM %s.%s WHERE %s",
+		`DELETE FROM "%s"."%s" WHERE %s`,
 		schema,
 		change.Table,
 		preparePrimaryKeyWhereClause(change.Table, primaryKey),

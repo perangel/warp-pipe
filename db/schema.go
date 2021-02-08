@@ -81,7 +81,7 @@ func Prepare(conn *pgx.Conn, schemas []string, includeTables, excludeTables []st
 		if err != nil {
 			pgErr, ok := err.(pgx.PgError)
 			if ok {
-				log.Printf("%v+", pgErr)
+				log.Printf("%+v", pgErr)
 			}
 			return errRegisterTrigger
 		}
@@ -215,7 +215,7 @@ func registerTrigger(tx *pgx.Tx, table string) error {
 			THEN
 				CREATE TRIGGER %s_changesets
 				AFTER INSERT OR UPDATE OR DELETE
-				ON %s
+				ON "%s"
 				FOR EACH ROW EXECUTE PROCEDURE warp_pipe.on_modify();
 			END IF ;
 		END;  
