@@ -165,20 +165,26 @@ func (w *WarpPipe) Close() error {
 }
 
 // IsLatestChangeSet returns true if the id argument matches that of the last record in the changeset table.
+// TODO: This feature only supports the notify listener. It needs to support others.
 func (w *WarpPipe) IsLatestChangeSet(id int64) (bool, error) {
-	rows, err := w.conn.Query("SELECT id FROM warp_pipe.changesets ORDER BY id DESC LIMIT 1")
-	if err != nil {
-		return false, fmt.Errorf("failed to query latest changeset record: %w", err)
-	}
-	for rows.Next() {
-		latestID := int64(0)
-		err := rows.Scan(&latestID)
+	switch w.listener.(type) {
+	case *NotifyListener:
+		rows, err := w.conn.Query("SELECT id FROM warp_pipe.changesets ORDER BY id DESC LIMIT 1")
 		if err != nil {
-			return false, fmt.Errorf("failed to scan latest changeset record: %w", err)
+			return false, fmt.Errorf("failed to query latest changeset record: %w", err)
 		}
-		if latestID == id {
-			return true, nil
+		for rows.Next() {
+			latestID := int64(0)
+			err := rows.Scan(&latestID)
+			if err != nil {
+				return false, fmt.Errorf("failed to scan latest changeset record: %w", err)
+			}
+			if latestID == id {
+				return true, nil
+			}
 		}
+	default:
+		return false, fmt.Errorf("unsupported listener. unable to determine if change is latest")
 	}
 	return false, nil
 }
