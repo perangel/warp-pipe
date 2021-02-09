@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/jackc/pgx"
 	"github.com/jmoiron/sqlx"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/perangel/warp-pipe/db"
 	"github.com/sirupsen/logrus"
 )
 
@@ -162,6 +164,93 @@ func (a *Axon) Run() {
 			}
 		}
 	}
+}
+
+func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
+
+	if a.Logger == nil {
+		a.Logger = logrus.New()
+		a.Logger.SetFormatter(&logrus.JSONFormatter{})
+	}
+
+	sourceDBConn, err := pgx.Connect(pgx.ConnConfig{
+		Host:     a.Config.SourceDBHost,
+		Port:     uint16(a.Config.SourceDBPort),
+		User:     a.Config.SourceDBUser,
+		Password: a.Config.SourceDBPass,
+		Database: a.Config.SourceDBName,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to connect to source database: %w", err)
+	}
+
+	err = db.PrepareForDataIntegrityChecks(sourceDBConn)
+	if err != nil {
+		return fmt.Errorf("unable to prepare source database for Integrity checks: %w", err)
+	}
+
+	targetDBConn, err := pgx.Connect(pgx.ConnConfig{
+		Host:     a.Config.TargetDBHost,
+		Port:     uint16(a.Config.TargetDBPort),
+		User:     a.Config.TargetDBUser,
+		Password: a.Config.TargetDBPass,
+		Database: a.Config.TargetDBName,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to connect to target database: %w", err)
+	}
+
+	err = db.PrepareForDataIntegrityChecks(targetDBConn)
+	if err != nil {
+		return fmt.Errorf("unable to prepare target database for Integrity checks: %w", err)
+	}
+
+	tables, err := db.GenerateTablesList(sourceDBConn, schemas, includeTables, excludeTables)
+	if err != nil {
+		return fmt.Errorf("unable to generate the list of source tables to check: %w", err)
+	}
+
+	for _, table := range tables {
+		if len(table.PKeyFields) < 1 {
+			return fmt.Errorf(`table "%s"."%s" has no primary key, cannot guarantee checksum match.`, table.Schema, table.Name)
+		}
+
+		orderByClause := ""
+		pkColumns := make([]string, len(table.PKeyFields))
+		for position, column := range table.PKeyFields {
+			pkColumns[position-1] = fmt.Sprintf(`"%s"."%s"."%s"`, table.Schema, table.Name, column)
+		}
+		orderByClause = fmt.Sprintf(`ORDER BY %s`, strings.Join(pkColumns, ","))
+
+		sql := fmt.Sprintf(
+			`SELECT md5(pg_concat(md5(CAST(("%s"."%s".*)AS TEXT))%s)) FROM "%s"."%s"`,
+			table.Schema,
+			table.Name,
+			orderByClause,
+			table.Schema,
+			table.Name,
+		)
+
+		sourceChecksum := ""
+		row := sourceDBConn.QueryRow(sql)
+		err := row.Scan(&sourceChecksum)
+		if err != nil {
+			return fmt.Errorf("failed to scan the source checksum for table %s.%s: %w", table.Schema, table.Name, err)
+		}
+
+		targetChecksum := ""
+		row = targetDBConn.QueryRow(sql)
+		err = row.Scan(&targetChecksum)
+		if err != nil {
+			return fmt.Errorf("failed to scan the target checksum for table %s.%s: %w", table.Schema, table.Name, err)
+		}
+
+		if sourceChecksum != targetChecksum {
+			return fmt.Errorf("checksums differ for table %s.%s", table.Schema, table.Name)
+		}
+
+	}
+	return nil
 }
 
 // Shutdown the Axon worker.

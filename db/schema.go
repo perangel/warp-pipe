@@ -275,3 +275,71 @@ func registerTrigger(tx *pgx.Tx, schema string, table string) error {
 
 	return err
 }
+
+func PrepareForDataIntegrityChecks(conn *pgx.Conn) error {
+	tx, err := conn.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin the transaction: %w", err)
+	}
+
+	pgConcatSQL := `	
+	DO $$ BEGIN
+		CREATE FUNCTION pg_concat(TEXT, TEXT) RETURNS TEXT as '
+			BEGIN
+				IF $1 ISNULL THEN
+					RETURN $2;
+				END if;
+				RETURN $1 || $2;
+			END;' LANGUAGE 'plpgsql';
+		EXCEPTION
+		WHEN duplicate_function THEN NULL;
+	END $$;`
+
+	_, err = tx.Exec(pgConcatSQL)
+	if err != nil {
+		return fmt.Errorf("failed to create the pg_concat function: %w", err)
+	}
+
+	pgConcatFinSQL := `
+	DO $$ BEGIN
+		CREATE FUNCTION pg_concat_fin(TEXT) RETURNS TEXT as '
+		BEGIN
+			IF $1 ISNULL THEN
+				-- avoids returning a null string for empty tables, resulting in a null checksum.
+				RETURN ''x'';
+			END IF;
+			RETURN $1;
+		END;' LANGUAGE 'plpgsql';
+		EXCEPTION
+			WHEN duplicate_function THEN NULL;
+	END $$;`
+
+	_, err = tx.Exec(pgConcatFinSQL)
+	if err != nil {
+		return fmt.Errorf("failed to create the pg_concat_fin function: %w", err)
+	}
+
+	aggregateSQL := `
+	DO $$ BEGIN
+	CREATE AGGREGATE pg_concat (
+		basetype = TEXT,
+		sfunc = pg_concat,
+		stype = TEXT,
+		finalfunc = pg_concat_fin
+	);
+	EXCEPTION
+		WHEN duplicate_function THEN NULL;
+	END $$;`
+
+	_, err = tx.Exec(aggregateSQL)
+	if err != nil {
+		return fmt.Errorf("failed to create the pg_concat aggregate: %w", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("failed to commit the transaction: %w", err)
+	}
+
+	return nil
+}
