@@ -150,17 +150,19 @@ func (a *Axon) Run() {
 				Error("received an error")
 		case change := <-changes:
 			a.processChange(sourceDBConn, targetDBConn, a.Config.TargetDBSchema, change)
-			isLatest, err := wp.IsLatestChangeSet(change.ID)
-			if err != nil {
-				a.Logger.WithError(err).
-					WithField("component", "warp_pipe").
-					Fatal("failed to determine if the sync is complete")
-			}
-			if isLatest {
-				a.Logger.
-					WithField("component", "warp_pipe").
-					Info("sync is complete. shutting down...")
-				a.Shutdown()
+			if a.Config.ShutdownAfterLastChangeset {
+				isLatest, err := wp.IsLatestChangeSet(change.ID)
+				if err != nil {
+					a.Logger.WithError(err).
+						WithField("component", "warp_pipe").
+						Fatal("failed to determine if the sync is complete")
+				}
+				if isLatest {
+					a.Logger.
+						WithField("component", "warp_pipe").
+						Info("sync is complete. shutting down...")
+					a.Shutdown()
+				}
 			}
 		}
 	}
