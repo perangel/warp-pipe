@@ -264,7 +264,7 @@ func registerTrigger(tx *pgx.Tx, schema string, table string) error {
 				 AND triggers.table = '%s.%s'  
 			)  
 			THEN
-				CREATE TRIGGER %s
+				CREATE TRIGGER "%s"
 				AFTER INSERT OR UPDATE OR DELETE
 				ON "%s"."%s"
 				FOR EACH ROW EXECUTE PROCEDURE warp_pipe.on_modify();
