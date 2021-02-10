@@ -3,6 +3,7 @@ package warppipe
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -179,10 +180,23 @@ func (l *NotifyListener) processChangeset(event *store.Event) {
 		var newValues map[string]interface{}
 		err := json.Unmarshal(event.NewValues, &newValues)
 		if err != nil {
-			l.errCh <- err
+			l.errCh <- fmt.Errorf("failed to unmarshal new values: %w", err)
+		}
+
+		var newRawValues map[string]json.RawMessage
+		err = json.Unmarshal(event.NewValues, &newRawValues)
+		if err != nil {
+			l.errCh <- fmt.Errorf("failed to unmarshal raw new values: %w", err)
 		}
 
 		for k, v := range newValues {
+			// Maps are not supported. They can break checksum validation
+			// when re-marshaling. Pass the original JSON string instead.
+			switch v.(type) {
+			case map[string]interface{}:
+				v = string(newRawValues[k])
+			}
+
 			col := &ChangesetColumn{
 				Column: k,
 				Value:  v,
@@ -195,10 +209,23 @@ func (l *NotifyListener) processChangeset(event *store.Event) {
 		var oldValues map[string]interface{}
 		err := json.Unmarshal(event.OldValues, &oldValues)
 		if err != nil {
-			l.errCh <- err
+			l.errCh <- fmt.Errorf("failed to unmarshal old values: %w", err)
+		}
+
+		var oldRawValues map[string]json.RawMessage
+		err = json.Unmarshal(event.OldValues, &oldRawValues)
+		if err != nil {
+			l.errCh <- fmt.Errorf("failed to unmarshal raw old values: %w", err)
 		}
 
 		for k, v := range oldValues {
+			// Maps are not supported. They can break checksum validation
+			// when re-marshaling. Pass the original JSON string instead.
+			switch v.(type) {
+			case map[string]interface{}:
+				v = string(oldRawValues[k])
+			}
+
 			col := &ChangesetColumn{
 				Column: k,
 				Value:  v,
