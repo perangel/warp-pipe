@@ -284,12 +284,9 @@ func PrepareForDataIntegrityChecks(conn *pgx.Conn) error {
 
 	pgConcatSQL := `	
 	DO $$ BEGIN
-		CREATE FUNCTION pg_concat(TEXT, TEXT) RETURNS TEXT as '
+		CREATE FUNCTION pg_md5_concat(TEXT, TEXT) RETURNS TEXT as '
 			BEGIN
-				IF $1 ISNULL THEN
-					RETURN $2;
-				END if;
-				RETURN $1 || $2;
+				RETURN md5($1 || $2);
 			END;' LANGUAGE 'plpgsql';
 		EXCEPTION
 		WHEN duplicate_function THEN NULL;
@@ -300,32 +297,13 @@ func PrepareForDataIntegrityChecks(conn *pgx.Conn) error {
 		return fmt.Errorf("failed to create the pg_concat function: %w", err)
 	}
 
-	pgConcatFinSQL := `
-	DO $$ BEGIN
-		CREATE FUNCTION pg_concat_fin(TEXT) RETURNS TEXT as '
-		BEGIN
-			IF $1 ISNULL THEN
-				-- avoids returning a null string for empty tables, resulting in a null checksum.
-				RETURN ''x'';
-			END IF;
-			RETURN $1;
-		END;' LANGUAGE 'plpgsql';
-		EXCEPTION
-			WHEN duplicate_function THEN NULL;
-	END $$;`
-
-	_, err = tx.Exec(pgConcatFinSQL)
-	if err != nil {
-		return fmt.Errorf("failed to create the pg_concat_fin function: %w", err)
-	}
-
 	aggregateSQL := `
 	DO $$ BEGIN
-	CREATE AGGREGATE pg_concat (
+	CREATE AGGREGATE pg_md5_hashagg (
 		basetype = TEXT,
-		sfunc = pg_concat,
+		sfunc = pg_md5_concat,
 		stype = TEXT,
-		finalfunc = pg_concat_fin
+		initcond = ''
 	);
 	EXCEPTION
 		WHEN duplicate_function THEN NULL;

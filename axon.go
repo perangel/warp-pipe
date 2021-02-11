@@ -213,6 +213,11 @@ func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
 	}
 
 	for _, table := range tables {
+
+		a.Logger.
+			WithField("table", fmt.Sprintf(`"%s"."%s"`, table.Schema, table.Name)).
+			Info("Verifying checksum")
+
 		if len(table.PKeyFields) < 1 {
 			return fmt.Errorf(`table "%s"."%s" has no primary key, cannot guarantee checksum match.`, table.Schema, table.Name)
 		}
@@ -225,7 +230,7 @@ func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
 		orderByClause = fmt.Sprintf(`ORDER BY %s`, strings.Join(pkColumns, ","))
 
 		sql := fmt.Sprintf(
-			`SELECT md5(pg_concat(md5(CAST(("%s"."%s".*)AS TEXT))%s)) FROM "%s"."%s"`,
+			`SELECT pg_md5_hashagg(md5(CAST(("%s"."%s".*)AS TEXT))%s) FROM "%s"."%s"`,
 			table.Schema,
 			table.Name,
 			orderByClause,
@@ -250,7 +255,6 @@ func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
 		if sourceChecksum != targetChecksum {
 			return fmt.Errorf("checksums differ for table %s.%s", table.Schema, table.Name)
 		}
-
 	}
 	return nil
 }
