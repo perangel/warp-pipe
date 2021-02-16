@@ -84,6 +84,9 @@ func Prepare(conn *pgx.Conn, schemas []string, includeTables, excludeTables []st
 	}
 
 	for _, table := range registerTables {
+		if len(table.PKeyFields) == 0 {
+			return fmt.Errorf(`table "%s"."%s" has no primary key.`, table.Schema, table.Name)
+		}
 		err = registerTrigger(tx, table.Schema, table.Name)
 		if err != nil {
 			pgErr, ok := err.(pgx.PgError)
