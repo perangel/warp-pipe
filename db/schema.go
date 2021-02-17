@@ -199,13 +199,15 @@ func GenerateTablesList(conn *pgx.Conn, schemas, includeTables, excludeTables []
 
 	tables := make([]Table, 0)
 	for tableName, include := range tableRegister {
-		if include {
-			tableDetails, err := getTableDetails(conn, tableName)
-			if err != nil {
-				return nil, err
-			}
-			tables = append(tables, *tableDetails)
+		if !include {
+			continue
 		}
+
+		tableDetails, err := getTableDetails(conn, tableName)
+		if err != nil {
+			return nil, err
+		}
+		tables = append(tables, *tableDetails)
 	}
 
 	return tables, nil
@@ -225,18 +227,24 @@ func getTableDetails(conn *pgx.Conn, name string) (*Table, error) {
 	rows, err := conn.Query(`
 		SELECT 
 			tco.constraint_name,
-			kcu.ordinal_position as position,
-			kcu.column_name as key_column
-		from information_schema.table_constraints tco
-		join information_schema.key_column_usage kcu
-  			on kcu.constraint_name = tco.constraint_name
-  			and kcu.constraint_schema = tco.constraint_schema
-  			and kcu.constraint_name = tco.constraint_name
-		where tco.constraint_type = 'PRIMARY KEY' and kcu.table_schema = $1 and  kcu.table_name =  $2
-		order by kcu.table_schema,
-	  		kcu.table_name,
-	  		position;`, table.Schema, table.Name,
+			kcu.ordinal_position AS position,
+			kcu.column_name AS key_column
+		FROM information_schema.table_constraints tco
+		JOIN information_schema.key_column_usage kcu
+			ON kcu.constraint_name = tco.constraint_name
+			AND kcu.constraint_schema = tco.constraint_schema
+			AND kcu.constraint_name = tco.constraint_name
+		WHERE tco.constraint_type = 'PRIMARY KEY'
+			AND kcu.table_schema = $1
+			AND kcu.table_name = $2
+		ORDER BY kcu.table_schema,
+			kcu.table_name,
+			position;`,
+		table.Schema, table.Name,
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	for rows.Next() {
 		var constraintName, column string
@@ -259,12 +267,12 @@ func registerTrigger(tx *pgx.Tx, schema string, table string) error {
 		$$  
 		BEGIN  
 			IF NOT EXISTS(
-                 SELECT * FROM(
-					 SELECT trigger_name AS name, concat_ws('.', event_object_schema, event_object_table) AS table 
-					 FROM information_schema.triggers
-                 ) AS triggers
-				 WHERE triggers.name = '%s'
-				 AND triggers.table = '%s.%s'  
+				SELECT * FROM(
+					SELECT trigger_name AS name, concat_ws('.', event_object_schema, event_object_table) AS table 
+					FROM information_schema.triggers
+				) AS triggers
+				WHERE triggers.name = '%s'
+				AND triggers.table = '%s.%s'  
 			)  
 			THEN
 				CREATE TRIGGER "%s"
