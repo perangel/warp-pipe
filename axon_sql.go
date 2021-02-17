@@ -1,7 +1,6 @@
 package warppipe
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"reflect"
@@ -25,13 +24,10 @@ func prepareQueryArgs(changesetCols []*ChangesetColumn) ([]string, []string, map
 	for _, c := range changesetCols {
 		t := reflect.TypeOf(c.Value)
 		if t != nil && t.Kind() == reflect.Map {
-			// Found a hashmap, this is a JSON/B field. Convert manually to string to
-			// avoid package sql error: "unsupported type map[string]interface {}".
-			b, err := json.Marshal(c.Value)
-			if err != nil {
-				return cols, colArgs, values, fmt.Errorf("unable to marshal JSON field %s: %w", c.Column, err)
-			}
-			c.Value = string(b)
+			// Found a hashmap, this is a JSON/B field. This type is not supported
+			// since re-marshaling breaks md5 checksum validation. Instead pass the
+			// original raw json as a string.
+			return nil, nil, nil, fmt.Errorf("expected raw json string")
 		}
 		if t != nil && t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Interface {
 			// Set empty slices to pq.Array(nil) to avoid package sql error on an
@@ -54,7 +50,7 @@ func prepareQueryArgs(changesetCols []*ChangesetColumn) ([]string, []string, map
 func preparePrimaryKeyWhereClause(table string, primaryKey []string) string {
 	clauses := make([]string, len(primaryKey))
 	for i, c := range primaryKey {
-		clauses[i] = fmt.Sprintf("%s.%s = :%s", table, c, c)
+		clauses[i] = fmt.Sprintf(`"%s".%s = :%s`, table, c, c)
 	}
 
 	return strings.Join(clauses, " AND ")
@@ -68,7 +64,7 @@ func prepareInsertQuery(schema string, change *Changeset) (string, map[string]in
 	}
 
 	sql := fmt.Sprintf(
-		"INSERT INTO %s.%s (%s) VALUES (%s)",
+		`INSERT INTO "%s"."%s" (%s) VALUES (%s)`,
 		schema,
 		change.Table,
 		strings.Join(cols, ","),
@@ -90,11 +86,11 @@ func prepareUpdateQuery(schema string, primaryKey []string, change *Changeset) (
 
 	primaryKeyWhereClauses := make([]string, len(primaryKey))
 	for i, c := range primaryKey {
-		primaryKeyWhereClauses[i] = fmt.Sprintf("%s.%s = :%s", change.Table, c, c)
+		primaryKeyWhereClauses[i] = fmt.Sprintf(`"%s".%s = :%s`, change.Table, c, c)
 	}
 
 	sql := fmt.Sprintf(`
-		INSERT INTO %s.%s (%s) VALUES (%s)
+		INSERT INTO "%s"."%s" (%s) VALUES (%s)
 			ON CONFLICT (%s)
 			DO UPDATE SET %s WHERE %s`,
 		schema,
@@ -116,7 +112,7 @@ func prepareDeleteQuery(schema string, primaryKey []string, change *Changeset) (
 	}
 
 	sql := fmt.Sprintf(
-		"DELETE FROM %s.%s WHERE %s",
+		`DELETE FROM "%s"."%s" WHERE %s`,
 		schema,
 		change.Table,
 		preparePrimaryKeyWhereClause(change.Table, primaryKey),

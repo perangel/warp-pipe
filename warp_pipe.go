@@ -2,6 +2,7 @@ package warppipe
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/jackc/pgx"
@@ -52,6 +53,8 @@ func LogLevel(level string) Option {
 // WarpPipe is a daemon that listens for database changes and transmits them
 // somewhere else.
 type WarpPipe struct {
+	connConfig      *pgx.ConnConfig
+	conn            *pgx.Conn
 	listener        Listener
 	ignoreTables    []string
 	whitelistTables []string
@@ -61,31 +64,29 @@ type WarpPipe struct {
 }
 
 // NewWarpPipe initializes and returns a new WarpPipe.
-func NewWarpPipe(listener Listener, opts ...Option) *WarpPipe {
+func NewWarpPipe(connConfig *pgx.ConnConfig, listener Listener, opts ...Option) (*WarpPipe, error) {
+	conn, err := pgx.Connect(*connConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to the source database: %w", err)
+	}
+
 	w := &WarpPipe{
-		listener: listener,
-		logger:   log.New(),
+		connConfig: connConfig,
+		conn:       conn,
+		listener:   listener,
+		logger:     log.New(),
 	}
 
 	for _, opt := range opts {
 		opt(w)
 	}
 
-	return w
+	return w, nil
 }
 
 // Open dials the listener's connection to the database.
-func (w *WarpPipe) Open(connConfig *DBConfig) error {
-	pgxConnCfg := &pgx.ConnConfig{
-		Host:     connConfig.Host,
-		Port:     uint16(connConfig.Port),
-		User:     connConfig.User,
-		Password: connConfig.Password,
-		Database: connConfig.Database,
-	}
-
-	err := w.listener.Dial(pgxConnCfg)
-	return err
+func (w *WarpPipe) Open() error {
+	return w.listener.Dial(w.connConfig)
 }
 
 // ListenForChanges starts the listener listening for database changesets.
@@ -161,6 +162,31 @@ func (w *WarpPipe) Close() error {
 		return err
 	}
 	return nil
+}
+
+// IsLatestChangeSet returns true if the id argument matches that of the last record in the changeset table.
+// TODO: This feature only supports the notify listener. It needs to support others.
+func (w *WarpPipe) IsLatestChangeSet(id int64) (bool, error) {
+	switch w.listener.(type) {
+	case *NotifyListener:
+		rows, err := w.conn.Query("SELECT id FROM warp_pipe.changesets ORDER BY id DESC LIMIT 1")
+		if err != nil {
+			return false, fmt.Errorf("failed to query latest changeset record: %w", err)
+		}
+		for rows.Next() {
+			latestID := int64(0)
+			err := rows.Scan(&latestID)
+			if err != nil {
+				return false, fmt.Errorf("failed to scan latest changeset record: %w", err)
+			}
+			if latestID == id {
+				return true, nil
+			}
+		}
+	default:
+		return false, fmt.Errorf("unsupported listener. unable to determine if change is latest")
+	}
+	return false, nil
 }
 
 func (w *WarpPipe) shutdown() error {

@@ -64,8 +64,8 @@ const (
 							TG_TABLE_SCHEMA::TEXT,
 							TG_TABLE_NAME::TEXT,
 							TG_RELID,
-							row_to_json(NEW),
-							row_to_json(OLD)
+							row_to_json(NEW, true),
+							row_to_json(OLD, true)
 						);
 						PERFORM pg_notify('warp_pipe_new_changeset', currval('warp_pipe.changesets_id_seq')::TEXT || '_' || current_timestamp::TEXT);
 						RETURN NEW;
@@ -85,7 +85,7 @@ const (
 							TG_TABLE_SCHEMA::TEXT,
 							TG_TABLE_NAME::TEXT,
 							TG_RELID,
-							row_to_json(OLD)
+							row_to_json(OLD, true)
 						);
 						PERFORM pg_notify('warp_pipe_new_changeset', currval('warp_pipe.changesets_id_seq')::TEXT || '_' || current_timestamp::TEXT);
 						RETURN OLD;
@@ -104,7 +104,7 @@ const (
 							TG_OP::TEXT, TG_TABLE_SCHEMA::TEXT,
 							TG_TABLE_NAME::TEXT,
 							TG_RELID,
-							row_to_json(NEW)
+							row_to_json(NEW, true)
 						);
 						PERFORM pg_notify('warp_pipe_new_changeset', currval('warp_pipe.changesets_id_seq')::TEXT || '_' || current_timestamp::TEXT);
 						RETURN NEW;

@@ -16,4 +16,7 @@ type AxonConfig struct {
 	TargetDBUser   string `envconfig:"target_db_user"`
 	TargetDBPass   string `envconfig:"target_db_pass"`
 	TargetDBSchema string `envconfig:"target_db_schema" default:"public"`
+
+	// force Axon to shutdown after processing the latest changeset
+	ShutdownAfterLastChangeset bool `envconfig:"shutdown_after_last_changeset"`
 }

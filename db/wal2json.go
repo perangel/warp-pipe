@@ -8,6 +8,7 @@ type Wal2JSONMessage struct {
 
 // Wal2JSONChange represents a changeset within a Wal2JSONMessage.
 type Wal2JSONChange struct {
+	ID           int64            `json:"id"`
 	Kind         string           `json:"kind"`
 	Schema       string           `json:"schema"`
 	Table        string           `json:"table"`

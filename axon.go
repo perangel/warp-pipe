@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
+	"github.com/jackc/pgx"
 	"github.com/jmoiron/sqlx"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/perangel/warp-pipe/db"
 	"github.com/sirupsen/logrus"
 )
 
@@ -23,11 +26,15 @@ func getDBConnString(host string, port int, name, user, pass string) string {
 	)
 }
 
+// Axon listens for Warp-Pipe change sets events. Then converts them into SQL statements, executing
+// them on the remote target.
 type Axon struct {
-	Config *AxonConfig
-	Logger *logrus.Logger
+	Config     *AxonConfig
+	Logger     *logrus.Logger
+	shutdownCh chan os.Signal
 }
 
+// NewAxonConfigFromEnv loads the Axon configuration from environment variables.
 func NewAxonConfigFromEnv() (*AxonConfig, error) {
 	config := AxonConfig{}
 	err := envconfig.Process("axon", &config)
@@ -37,9 +44,13 @@ func NewAxonConfigFromEnv() (*AxonConfig, error) {
 	return &config, nil
 }
 
+// Run the Axon worker.
 func (a *Axon) Run() {
-	shutdownCh := make(chan os.Signal)
-	signal.Notify(shutdownCh, os.Interrupt, syscall.SIGTERM)
+	if a.shutdownCh == nil {
+		a.shutdownCh = make(chan os.Signal, 1)
+	}
+
+	signal.Notify(a.shutdownCh, os.Interrupt, syscall.SIGTERM)
 
 	if a.Logger == nil {
 		a.Logger = logrus.New()
@@ -98,44 +109,159 @@ func (a *Axon) Run() {
 
 	// create a notify listener and start from changeset id 1
 	listener := NewNotifyListener(StartFromID(0))
-	wp := NewWarpPipe(listener)
-	err = wp.Open(&DBConfig{
+
+	connConfig := pgx.ConnConfig{
 		Host:     a.Config.SourceDBHost,
-		Port:     a.Config.SourceDBPort,
-		Database: a.Config.SourceDBName,
+		Port:     uint16(a.Config.SourceDBPort),
 		User:     a.Config.SourceDBUser,
 		Password: a.Config.SourceDBPass,
-	})
+		Database: a.Config.SourceDBName,
+	}
+
+	wp, err := NewWarpPipe(&connConfig, listener)
 	if err != nil {
 		a.Logger.WithError(err).
 			WithField("component", "warp_pipe").
-			Fatal("unable to connect to source database")
+			Fatal("failed to establish a warp-pipe")
+	}
+
+	err = wp.Open()
+	if err != nil {
+		a.Logger.WithError(err).
+			WithField("component", "warp_pipe").
+			Fatal("failed to dial the listener")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	changes, errs := wp.ListenForChanges(ctx)
 
-	go func() {
-		<-shutdownCh
-		a.Logger.Error("shutting down...")
-		cancel()
-		wp.Close()
-		sourceDBConn.Close()
-		targetDBConn.Close()
-		os.Exit(0)
-	}()
-
 	for {
 		select {
+		case <-a.shutdownCh:
+			a.Logger.Error("shutting down...")
+			cancel()
+			wp.Close()
+			sourceDBConn.Close()
+			targetDBConn.Close()
+			return
 		case err := <-errs:
 			a.Logger.WithError(err).
 				WithField("component", "warp_pipe").
 				Error("received an error")
 		case change := <-changes:
 			a.processChange(sourceDBConn, targetDBConn, a.Config.TargetDBSchema, change)
-
+			if a.Config.ShutdownAfterLastChangeset {
+				isLatest, err := wp.IsLatestChangeSet(change.ID)
+				if err != nil {
+					a.Logger.WithError(err).
+						WithField("component", "warp_pipe").
+						Fatal("failed to determine if the sync is complete")
+				}
+				if isLatest {
+					a.Logger.
+						WithField("component", "warp_pipe").
+						Info("sync is complete. shutting down...")
+					a.Shutdown()
+				}
+			}
 		}
 	}
+}
+
+func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
+
+	if a.Logger == nil {
+		a.Logger = logrus.New()
+		a.Logger.SetFormatter(&logrus.JSONFormatter{})
+	}
+
+	sourceDBConn, err := pgx.Connect(pgx.ConnConfig{
+		Host:     a.Config.SourceDBHost,
+		Port:     uint16(a.Config.SourceDBPort),
+		User:     a.Config.SourceDBUser,
+		Password: a.Config.SourceDBPass,
+		Database: a.Config.SourceDBName,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to connect to source database: %w", err)
+	}
+
+	err = db.PrepareForDataIntegrityChecks(sourceDBConn)
+	if err != nil {
+		return fmt.Errorf("unable to prepare source database for Integrity checks: %w", err)
+	}
+
+	targetDBConn, err := pgx.Connect(pgx.ConnConfig{
+		Host:     a.Config.TargetDBHost,
+		Port:     uint16(a.Config.TargetDBPort),
+		User:     a.Config.TargetDBUser,
+		Password: a.Config.TargetDBPass,
+		Database: a.Config.TargetDBName,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to connect to target database: %w", err)
+	}
+
+	err = db.PrepareForDataIntegrityChecks(targetDBConn)
+	if err != nil {
+		return fmt.Errorf("unable to prepare target database for Integrity checks: %w", err)
+	}
+
+	tables, err := db.GenerateTablesList(sourceDBConn, schemas, includeTables, excludeTables)
+	if err != nil {
+		return fmt.Errorf("unable to generate the list of source tables to check: %w", err)
+	}
+
+	for _, table := range tables {
+
+		a.Logger.
+			WithField("table", fmt.Sprintf(`"%s"."%s"`, table.Schema, table.Name)).
+			Info("Verifying checksum")
+
+		if len(table.PKeyFields) < 1 {
+			return fmt.Errorf(`table "%s"."%s" has no primary key, cannot guarantee checksum match.`, table.Schema, table.Name)
+		}
+
+		orderByClause := ""
+		pkColumns := make([]string, len(table.PKeyFields))
+		for position, column := range table.PKeyFields {
+			pkColumns[position-1] = fmt.Sprintf(`"%s"."%s"."%s"`, table.Schema, table.Name, column)
+		}
+		orderByClause = fmt.Sprintf(`ORDER BY %s`, strings.Join(pkColumns, ","))
+
+		sql := fmt.Sprintf(
+			`SELECT pg_md5_hashagg(md5(CAST(("%s"."%s".*)AS TEXT))%s) FROM "%s"."%s"`,
+			table.Schema,
+			table.Name,
+			orderByClause,
+			table.Schema,
+			table.Name,
+		)
+
+		sourceChecksum := ""
+		row := sourceDBConn.QueryRow(sql)
+		err := row.Scan(&sourceChecksum)
+		if err != nil {
+			return fmt.Errorf("failed to scan the source checksum for table %s.%s: %w", table.Schema, table.Name, err)
+		}
+
+		targetChecksum := ""
+		row = targetDBConn.QueryRow(sql)
+		err = row.Scan(&targetChecksum)
+		if err != nil {
+			return fmt.Errorf("failed to scan the target checksum for table %s.%s: %w", table.Schema, table.Name, err)
+		}
+
+		if sourceChecksum != targetChecksum {
+			return fmt.Errorf("checksums differ for table %s.%s", table.Schema, table.Name)
+		}
+	}
+	return nil
+}
+
+// Shutdown the Axon worker.
+func (a *Axon) Shutdown() {
+	a.shutdownCh <- syscall.SIGTERM
 }
 
 func (a *Axon) processChange(sourceDB *sqlx.DB, targetDB *sqlx.DB, schema string, change *Changeset) {
