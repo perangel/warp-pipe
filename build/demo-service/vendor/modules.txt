@@ -1,0 +1,51 @@
+# github.com/gorilla/websocket v1.4.2
+github.com/gorilla/websocket
+# github.com/jackc/pgx v3.6.2+incompatible
+## explicit
+github.com/jackc/pgx
+github.com/jackc/pgx/chunkreader
+github.com/jackc/pgx/internal/sanitize
+github.com/jackc/pgx/pgio
+github.com/jackc/pgx/pgproto3
+github.com/jackc/pgx/pgtype
+# github.com/jmoiron/sqlx v1.2.0
+github.com/jmoiron/sqlx
+github.com/jmoiron/sqlx/reflectx
+# github.com/kelseyhightower/envconfig v1.3.0
+github.com/kelseyhightower/envconfig
+# github.com/konsorten/go-windows-terminal-sequences v1.0.2
+github.com/konsorten/go-windows-terminal-sequences
+# github.com/lib/pq v1.3.0
+github.com/lib/pq
+github.com/lib/pq/oid
+github.com/lib/pq/scram
+# github.com/perangel/warp-pipe v0.0.0-20210217155734-c4d42722a7b4
+## explicit
+github.com/perangel/warp-pipe
+github.com/perangel/warp-pipe/db
+github.com/perangel/warp-pipe/internal/store
+# github.com/pkg/errors v0.8.1
+github.com/pkg/errors
+# github.com/sirupsen/logrus v1.4.1
+github.com/sirupsen/logrus
+# golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
+golang.org/x/crypto/pbkdf2
+# golang.org/x/sys v0.0.0-20190415145633-3fd5a3612ccd
+golang.org/x/sys/unix
+# golang.org/x/text v0.3.2
+golang.org/x/text/cases
+golang.org/x/text/internal
+golang.org/x/text/internal/language
+golang.org/x/text/internal/language/compact
+golang.org/x/text/internal/tag
+golang.org/x/text/language
+golang.org/x/text/runes
+golang.org/x/text/secure/bidirule
+golang.org/x/text/secure/precis
+golang.org/x/text/transform
+golang.org/x/text/unicode/bidi
+golang.org/x/text/unicode/norm
+golang.org/x/text/width
+# gopkg.in/olahol/melody.v1 v1.0.0-20170518105555-d52139073376
+## explicit
+gopkg.in/olahol/melody.v1
