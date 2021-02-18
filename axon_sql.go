@@ -56,7 +56,7 @@ func preparePrimaryKeyWhereClause(table string, primaryKey []string) string {
 	return strings.Join(clauses, " AND ")
 }
 
-func prepareInsertQuery(schema string, change *Changeset) (string, map[string]interface{}) {
+func prepareInsertQuery(change *Changeset) (string, map[string]interface{}) {
 	cols, colArgs, values, err := prepareQueryArgs(change.NewValues)
 	if err != nil {
 		// TODO: Is failure the best option here? Probably no way to safely save anything.
@@ -65,7 +65,7 @@ func prepareInsertQuery(schema string, change *Changeset) (string, map[string]in
 
 	sql := fmt.Sprintf(
 		`INSERT INTO "%s"."%s" (%s) VALUES (%s)`,
-		schema,
+		change.Schema,
 		change.Table,
 		strings.Join(cols, ","),
 		strings.Join(colArgs, ","),
@@ -74,7 +74,7 @@ func prepareInsertQuery(schema string, change *Changeset) (string, map[string]in
 	return sql, values
 }
 
-func prepareUpdateQuery(schema string, primaryKey []string, change *Changeset) (string, map[string]interface{}) {
+func prepareUpdateQuery(primaryKey []string, change *Changeset) (string, map[string]interface{}) {
 	cols, colArgs, values, err := prepareQueryArgs(change.NewValues)
 	if err != nil {
 		log.Fatalf("prepareQueryArgs: error in changeset %s: %s", change, err)
@@ -93,7 +93,7 @@ func prepareUpdateQuery(schema string, primaryKey []string, change *Changeset) (
 		INSERT INTO "%s"."%s" (%s) VALUES (%s)
 			ON CONFLICT (%s)
 			DO UPDATE SET %s WHERE %s`,
-		schema,
+		change.Schema,
 		change.Table,
 		strings.Join(cols, ", "),
 		strings.Join(colArgs, ", "),
@@ -105,7 +105,7 @@ func prepareUpdateQuery(schema string, primaryKey []string, change *Changeset) (
 	return sql, values
 }
 
-func prepareDeleteQuery(schema string, primaryKey []string, change *Changeset) (string, map[string]interface{}) {
+func prepareDeleteQuery(primaryKey []string, change *Changeset) (string, map[string]interface{}) {
 	_, _, values, err := prepareQueryArgs(change.OldValues)
 	if err != nil {
 		log.Fatalf("prepareQueryArgs: error in changeset %s: %s", change, err)
@@ -113,7 +113,7 @@ func prepareDeleteQuery(schema string, primaryKey []string, change *Changeset) (
 
 	sql := fmt.Sprintf(
 		`DELETE FROM "%s"."%s" WHERE %s`,
-		schema,
+		change.Schema,
 		change.Table,
 		preparePrimaryKeyWhereClause(change.Table, primaryKey),
 	)
@@ -121,8 +121,8 @@ func prepareDeleteQuery(schema string, primaryKey []string, change *Changeset) (
 	return sql, values
 }
 
-func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, schema string, change *Changeset) error {
-	query, args := prepareInsertQuery(schema, change)
+func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset) error {
+	query, args := prepareInsertQuery(change)
 	_, err := targetDB.NamedExec(query, args)
 	if err != nil {
 		// PG error codes: https://www.postgresql.org/docs/9.2/errcodes-appendix.html
@@ -159,8 +159,8 @@ func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, schema string, change *Chan
 	return nil
 }
 
-func updateRow(targetDB *sqlx.DB, schema string, change *Changeset, primaryKey []string) error {
-	query, args := prepareUpdateQuery(schema, primaryKey, change)
+func updateRow(targetDB *sqlx.DB, change *Changeset, primaryKey []string) error {
+	query, args := prepareUpdateQuery(primaryKey, change)
 	_, err := targetDB.NamedExec(query, args)
 	if err != nil {
 		pqe, ok := err.(*pq.Error)
@@ -179,8 +179,8 @@ func updateRow(targetDB *sqlx.DB, schema string, change *Changeset, primaryKey [
 	return nil
 }
 
-func deleteRow(targetDB *sqlx.DB, schema string, change *Changeset, primaryKey []string) error {
-	query, values := prepareDeleteQuery(schema, primaryKey, change)
+func deleteRow(targetDB *sqlx.DB, change *Changeset, primaryKey []string) error {
+	query, values := prepareDeleteQuery(primaryKey, change)
 	_, err := targetDB.NamedExec(query, values)
 	if err != nil {
 		pqe, ok := err.(*pq.Error)
