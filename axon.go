@@ -45,7 +45,7 @@ func NewAxonConfigFromEnv() (*AxonConfig, error) {
 }
 
 // Run the Axon worker.
-func (a *Axon) Run() {
+func (a *Axon) Run() error {
 	if a.shutdownCh == nil {
 		a.shutdownCh = make(chan os.Signal, 1)
 	}
@@ -66,7 +66,7 @@ func (a *Axon) Run() {
 		a.Config.SourceDBPass,
 	))
 	if err != nil {
-		a.Logger.WithError(err).Fatal("unable to connect to source database")
+		return fmt.Errorf("unable to connect to source database: %w", err)
 	}
 
 	targetDBConn, err := sqlx.Open("postgres", getDBConnString(
@@ -77,34 +77,34 @@ func (a *Axon) Run() {
 		a.Config.TargetDBPass,
 	))
 	if err != nil {
-		a.Logger.WithError(err).Fatal("unable to connect to target database")
+		return fmt.Errorf("unable to connect to target database: %w", err)
 	}
 
 	err = checkTargetVersion(targetDBConn)
 	if err != nil {
-		a.Logger.WithError(err).Fatal("unable to check target database version")
+		return fmt.Errorf("unable to check target database version: %w", err)
 	}
 
 	// TODO: (1) add support for selecting the warp-pipe mode
 	// TODO: (2) only print the source stats if that is audit
 	err = printSourceStats(sourceDBConn)
 	if err != nil {
-		a.Logger.WithError(err).Fatal("unable to get source db stats")
+		return fmt.Errorf("unable to get source db stats: %w", err)
 	}
 
 	err = loadPrimaryKeys(targetDBConn)
 	if err != nil {
-		a.Logger.WithError(err).Fatal("unable to load target DB primary keys")
+		return fmt.Errorf("unable to load target DB primary keys: %w", err)
 	}
 
 	err = loadColumnSequences(targetDBConn)
 	if err != nil {
-		a.Logger.WithError(err).Fatal("unable to load target DB column sequences")
+		return fmt.Errorf("unable to load target DB column sequences: %w", err)
 	}
 
 	err = loadOrphanSequences(sourceDBConn)
 	if err != nil {
-		a.Logger.WithError(err).Fatal("unable to load source DB orphan sequences")
+		return fmt.Errorf("unable to load source DB orphan sequences: %w", err)
 	}
 
 	// create a notify listener and start from changeset id 1
@@ -120,16 +120,12 @@ func (a *Axon) Run() {
 
 	wp, err := NewWarpPipe(&connConfig, listener)
 	if err != nil {
-		a.Logger.WithError(err).
-			WithField("component", "warp_pipe").
-			Fatal("failed to establish a warp-pipe")
+		return fmt.Errorf("failed to establish a warp-pipe: %w", err)
 	}
 
 	err = wp.Open()
 	if err != nil {
-		a.Logger.WithError(err).
-			WithField("component", "warp_pipe").
-			Fatal("failed to dial the listener")
+		return fmt.Errorf("failed to dial the listener: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -143,11 +139,9 @@ func (a *Axon) Run() {
 			wp.Close()
 			sourceDBConn.Close()
 			targetDBConn.Close()
-			return
+			return nil
 		case err := <-errs:
-			a.Logger.WithError(err).
-				WithField("component", "warp_pipe").
-				Error("received an error")
+			return fmt.Errorf("listener received an error: %w", err)
 		case change := <-changes:
 			// Override the schema if a target database schema has been configured.
 			if a.Config.TargetDBSchema != "" {
@@ -157,9 +151,7 @@ func (a *Axon) Run() {
 			if a.Config.ShutdownAfterLastChangeset {
 				isLatest, err := wp.IsLatestChangeSet(change.ID)
 				if err != nil {
-					a.Logger.WithError(err).
-						WithField("component", "warp_pipe").
-						Fatal("failed to determine if the sync is complete")
+					return fmt.Errorf("failed to determine if the sync is complete: %w", err)
 				}
 				if isLatest {
 					a.Logger.
@@ -223,7 +215,7 @@ func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
 			Info("Verifying checksum")
 
 		if len(table.PKeyFields) < 1 {
-			return fmt.Errorf(`table "%s"."%s" has no primary key, cannot guarantee checksum match.`, table.Schema, table.Name)
+			return fmt.Errorf(`table "%s"."%s" has no primary key, cannot guarantee checksum match`, table.Schema, table.Name)
 		}
 
 		orderByClause := ""

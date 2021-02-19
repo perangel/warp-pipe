@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	_ "github.com/lib/pq"
 	"github.com/sirupsen/logrus"
 
@@ -17,5 +19,8 @@ func main() {
 	}
 
 	axon := warppipe.Axon{Config: cfg, Logger: logger}
-	axon.Run()
+	err = axon.Run()
+	if err != nil {
+		fmt.Printf("ERROR: %s\n", err.Error())
+	}
 }
