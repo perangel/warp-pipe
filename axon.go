@@ -32,6 +32,7 @@ type Axon struct {
 	Config     *AxonConfig
 	Logger     *logrus.Logger
 	shutdownCh chan os.Signal
+	pipeline   *Pipeline
 }
 
 // NewAxonConfigFromEnv loads the Axon configuration from environment variables.
@@ -135,6 +136,10 @@ func (a *Axon) Run() {
 	ctx, cancel := context.WithCancel(context.Background())
 	changes, errs := wp.ListenForChanges(ctx)
 
+	if a.pipeline != nil {
+		changes, errs = a.pipeline.Start(ctx, changes)
+	}
+
 	for {
 		select {
 		case <-a.shutdownCh:
@@ -166,6 +171,11 @@ func (a *Axon) Run() {
 			}
 		}
 	}
+}
+
+func (a *Axon) RunWithPipeline(p *Pipeline) {
+	a.pipeline = p
+	a.Run()
 }
 
 func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
