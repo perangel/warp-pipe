@@ -37,13 +37,6 @@ func ReplSlotName(name string) LROption {
 	}
 }
 
-// StartFromLSN is an option for setting the logical sequence number to start from.
-func StartFromLSN(lsn uint64) LROption {
-	return func(l *LogicalReplicationListener) {
-		l.replLSN = lsn
-	}
-}
-
 // HeartbeatInterval is an option for setting the connection heartbeat interval.
 func HeartbeatInterval(seconds int) LROption {
 	return func(l *LogicalReplicationListener) {
@@ -81,10 +74,6 @@ func NewLogicalReplicationListener(opts ...LROption) *LogicalReplicationListener
 		l.connHeartbeatIntervalSeconds = 10
 	}
 
-	if l.replSlotName == "" {
-		l.replSlotName = fmt.Sprintf("%s%d", replicationSlotNamePrefix, time.Now().Unix())
-	}
-
 	return l
 }
 
@@ -110,32 +99,30 @@ func (l *LogicalReplicationListener) Dial(connConfig *pgx.ConnConfig) error {
 		return err
 	}
 
-	consistentPoint, snapshot, err := l.replConn.CreateReplicationSlotEx(l.replSlotName, replicationOutputPlugin)
-	if err != nil {
-		l.logger.WithError(err).Errorf("failed to create replicaiton slot %s", l.replSlotName)
-		return err
-	}
+	// If no slot name is provided, create a new replication slot
+	if l.replSlotName == "" {
+		l.replSlotName = fmt.Sprintf("%s%d", replicationSlotNamePrefix, time.Now().Unix())
+		consistentPoint, snapshot, err := l.replConn.CreateReplicationSlotEx(l.replSlotName, replicationOutputPlugin)
+		if err != nil {
+			l.logger.WithError(err).Errorf("failed to create replication slot %s", l.replSlotName)
+			return err
+		}
+		lsn, err := pgx.ParseLSN(consistentPoint)
+		if err != nil {
+			l.logger.WithError(err).Error("failed to parse LSN from consistent point")
+			return err
+		}
 
-	lsn, err := pgx.ParseLSN(consistentPoint)
-	if err != nil {
-		l.logger.WithError(err).Error("failed to parse LSN from consistent point")
-		return err
-	}
-
-	if l.replLSN == 0 {
 		l.replLSN = lsn
+		l.replSnapshot = snapshot
 	}
-	l.replSnapshot = snapshot
 
 	return nil
 }
 
 // ListenForChanges returns a channel that emits database changesets.
 func (l *LogicalReplicationListener) ListenForChanges(ctx context.Context) (chan *Changeset, chan error) {
-	l.logger.Infof("Starting replication for slot '%s' from LSN %s",
-		l.replSlotName,
-		pgx.FormatLSN(l.replLSN),
-	)
+	l.logger.Infof("Starting replication for slot '%s'", l.replSlotName)
 
 	err := l.replConn.StartReplication(l.replSlotName, l.replLSN, -1, l.wal2jsonArgs...)
 	if err != nil {
@@ -250,31 +237,38 @@ func (l *LogicalReplicationListener) processMessage(msg *pgx.ReplicationMessage)
 			cs.OldValues = oldColValues
 		}
 
+		lsn, err := pgx.ParseLSN(w2jmsg.NextLSN)
+		if err != nil {
+			// TODO: should this be fatal?
+			l.errCh <- fmt.Errorf("failed to parse LSN `NextLSN`: %v", err)
+		}
+		l.replLSN = lsn
+
 		l.changesetsCh <- cs
 	}
 }
 
+// TODO: Need to figure out what the default behavior should be around replication slots. We _should_ allow mutliple
+// warp-pipe instances to replicate data.
 func (l *LogicalReplicationListener) clearReplicationSlots() error {
-	rows, err := l.conn.Query("SELECT slot_name FROM pg_replication_slots")
+	rows, err := l.conn.Query("SELECT slot_name FROM pg_replication_slots WHERE NOT active")
 	if err != nil {
 		l.logger.WithError(err).Error("Failed to read replication slots.")
 		return err
 	}
-
 	for rows.Next() {
 		var slotName string
 		rows.Scan(&slotName)
 
-		if !strings.HasPrefix(slotName, replicationSlotNamePrefix) {
+		// _DO NOT_ touch any replication slots that we aren't managing
+		if !strings.HasPrefix(slotName, replicationSlotNamePrefix) || slotName == l.replSlotName {
 			continue
 		}
-
-		// TODO: Handle re-using the same replication slot
 
 		l.logger.Infof("Deleting replication slot %s", slotName)
 		err = l.replConn.DropReplicationSlot(slotName)
 		if err != nil {
-			log.WithError(err).Error("failed to delte replication slot", slotName)
+			log.WithError(err).Errorf("failed to delete replication slot %s", slotName)
 		}
 	}
 
