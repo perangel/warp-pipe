@@ -34,7 +34,7 @@ func prepareQueryArgs(changesetCols []*ChangesetColumn) ([]string, []string, map
 			// empty character varying[]: "unsupported type []interface {}, a slice of
 			// interface"
 			if reflect.ValueOf(c.Value).Len() == 0 {
-				c.Value = pq.Array(nil)
+				c.Value = []byte("{}")
 			} else {
 				c.Value = pq.Array(c.Value)
 			}
