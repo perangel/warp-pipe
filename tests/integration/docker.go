@@ -52,14 +52,6 @@ func (d dockerClient) runContainer(ctx context.Context, config *ContainerConfig)
 	}
 	fullName := imageName.String()
 
-	out, err := d.ImagePull(ctx, fullName, types.ImagePullOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("unable to pull image: %w", err)
-	}
-	defer out.Close()
-
-	io.Copy(os.Stdout, out)
-
 	container, err := d.createNewContainer(ctx, fullName, config.ports, config.env, config.cmd)
 	if err != nil {
 		return nil, fmt.Errorf("unable create container: %w", err)
@@ -74,16 +66,19 @@ func (d dockerClient) runContainer(ctx context.Context, config *ContainerConfig)
 
 func (d dockerClient) createNewContainer(ctx context.Context, image string, ports []*PortMapping, env []string, cmd []string) (*container.ContainerCreateCreatedBody, error) {
 	portBinding := nat.PortMap{}
+
 	for _, portmap := range ports {
 		hostBinding := nat.PortBinding{
 			//TODO: Allow for host ips to be specified
 			HostIP:   "0.0.0.0",
 			HostPort: portmap.HostPort,
 		}
+
 		containerPort, err := nat.NewPort("tcp", portmap.ContainerPort)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get the port: %w", err)
 		}
+
 		portBinding[containerPort] = []nat.PortBinding{hostBinding}
 	}
 
@@ -91,6 +86,7 @@ func (d dockerClient) createNewContainer(ctx context.Context, image string, port
 		Image: image,
 		Env:   env,
 	}
+
 	if len(cmd) > 0 {
 		containerConfig.Cmd = cmd
 	}
@@ -99,12 +95,31 @@ func (d dockerClient) createNewContainer(ctx context.Context, image string, port
 		PortBindings: portBinding,
 	}
 	networkingConfig := &network.NetworkingConfig{}
-	cont, err := d.ContainerCreate(ctx, containerConfig, hostConfig, networkingConfig, nil, "")
 
+	var resp container.ContainerCreateCreatedBody
+	var err error
+
+	resp, err = d.ContainerCreate(ctx, containerConfig, hostConfig, networkingConfig, nil, "")
 	if err != nil {
-		return nil, fmt.Errorf("could not create container: %w", err)
+		if !client.IsErrNotFound(err) {
+			return nil, fmt.Errorf("could not create container: %w", err)
+		}
+
+		out, err := d.ImagePull(ctx, image, types.ImagePullOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("unable to pull image: %w", err)
+		}
+		defer out.Close()
+
+		io.Copy(os.Stdout, out)
+
+		resp, err = d.ContainerCreate(ctx, containerConfig, hostConfig, networkingConfig, nil, "")
+		if err != nil {
+			return nil, fmt.Errorf("could not create container: %w", err)
+		}
 	}
-	return &cont, nil
+
+	return &resp, nil
 }
 
 func (d dockerClient) removeContainer(ctx context.Context, id string) error {
@@ -139,7 +154,9 @@ func (d dockerClient) printLogs(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+
 	io.Copy(os.Stdout, out)
 	defer out.Close()
+
 	return nil
 }
