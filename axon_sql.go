@@ -155,7 +155,9 @@ func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset) error {
 		return err
 	}
 
-	log.Printf("row inserted: %s", change)
+	// NOTE: row insert/update/delete logs have been updated to be the same length
+	// to align timestamps to ease viewing.
+	log.Printf("row insert: %s", change)
 	return nil
 }
 
@@ -175,7 +177,7 @@ func updateRow(targetDB *sqlx.DB, change *Changeset, primaryKey []string) error 
 
 		return fmt.Errorf("PG error %s:%s failed to update %s for query %s args %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), args, err)
 	}
-	log.Printf("row updated: %s", change)
+	log.Printf("row update: %s", change)
 	return nil
 }
 
@@ -189,6 +191,6 @@ func deleteRow(targetDB *sqlx.DB, change *Changeset, primaryKey []string) error 
 		}
 		return fmt.Errorf("PG error %s:%s delete to update %s for query %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), err)
 	}
-	log.Printf("row deleted: %s", change)
+	log.Printf("row delete: %s", change)
 	return nil
 }
