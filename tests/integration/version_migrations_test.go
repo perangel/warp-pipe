@@ -241,6 +241,7 @@ func deleteTestData(t *testing.T, config pgx.ConnConfig, nRows int, wg *sync.Wai
 }
 
 func TestVersionMigration(t *testing.T) {
+
 	testCases := []struct {
 		name   string
 		source string

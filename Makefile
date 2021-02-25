@@ -13,3 +13,7 @@ demo:
 .PHONY: demo-clean
 demo-clean:
 	docker-compose -f docker-compose.demo.yml rm -f -s
+
+.PHONY: integration-test
+integration-test:
+	go test -v ./tests/integration -integration
