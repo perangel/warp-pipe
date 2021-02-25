@@ -19,4 +19,7 @@ type AxonConfig struct {
 
 	// force Axon to shutdown after processing the latest changeset
 	ShutdownAfterLastChangeset bool `envconfig:"shutdown_after_last_changeset"`
+
+	// start the axon run from the specified changeset id. defaults to 0.
+	StartFromID int64 `envconfig:"start_from_id" default:"0"`
 }
