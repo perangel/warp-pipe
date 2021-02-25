@@ -107,8 +107,8 @@ func (a *Axon) Run() error {
 		return fmt.Errorf("unable to load source DB orphan sequences: %w", err)
 	}
 
-	// create a notify listener and start from changeset id 1
-	listener := NewNotifyListener(StartFromID(0))
+	// Create a notify listener and start from the configured changeset id.
+	listener := NewNotifyListener(StartFromID(a.Config.StartFromID))
 
 	connConfig := pgx.ConnConfig{
 		Host:     a.Config.SourceDBHost,
