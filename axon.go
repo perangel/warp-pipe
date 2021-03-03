@@ -147,7 +147,12 @@ func (a *Axon) Run() error {
 			if a.Config.TargetDBSchema != "" {
 				change.Schema = a.Config.TargetDBSchema
 			}
-			a.processChange(sourceDBConn, targetDBConn, change)
+
+			processErr := a.processChange(sourceDBConn, targetDBConn, change)
+			if processErr != nil {
+				return fmt.Errorf("failed to apply changeset: %s, %w", change, processErr)
+			}
+
 			if a.Config.ShutdownAfterLastChangeset {
 				isLatest, err := wp.IsLatestChangeSet(change.ID)
 				if err != nil {
@@ -260,49 +265,64 @@ func (a *Axon) Shutdown() {
 	a.shutdownCh <- syscall.SIGTERM
 }
 
-func (a *Axon) processChange(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset) {
+func (a *Axon) processChange(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset) error {
+	var err error
+
 	switch change.Kind {
 	case ChangesetKindInsert:
-		a.processInsert(sourceDB, targetDB, change)
+		err = a.processInsert(sourceDB, targetDB, change)
 	case ChangesetKindUpdate:
-		a.processUpdate(targetDB, change)
+		err = a.processUpdate(targetDB, change)
 	case ChangesetKindDelete:
-		a.processDelete(targetDB, change)
+		err = a.processDelete(targetDB, change)
 	}
+
+	return err
 }
 
-func (a *Axon) processDelete(targetDB *sqlx.DB, change *Changeset) {
+func (a *Axon) processDelete(targetDB *sqlx.DB, change *Changeset) error {
 	pk, err := getPrimaryKeyForChange(change)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("unable to process DELETE for table '%s', changeset has no primary key", change.Table)
+		return err
 	}
 
 	err = deleteRow(targetDB, change, pk)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("failed to DELETE row for table '%s' (pk: %s)", change.Table, pk)
+		return err
 	}
+
+	return nil
 }
 
-func (a *Axon) processInsert(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset) {
+func (a *Axon) processInsert(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset) error {
 	err := insertRow(sourceDB, targetDB, change)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("failed to INSERT row for table '%s'", change.Table)
+		return err
 	}
+
+	return nil
 }
 
-func (a *Axon) processUpdate(targetDB *sqlx.DB, change *Changeset) {
+func (a *Axon) processUpdate(targetDB *sqlx.DB, change *Changeset) error {
 	pk, err := getPrimaryKeyForChange(change)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("unable to process UPDATE for table '%s', changeset has no primary key", change.Table)
+		return err
 	}
 
 	err = updateRow(targetDB, change, pk)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("failed to UPDATE row for table '%s' (pk: %s)", change.Table, pk)
+		return err
 	}
+
+	return nil
 }
