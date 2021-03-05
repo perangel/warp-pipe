@@ -41,6 +41,7 @@ type NotifyListener struct {
 	startFromID            *int64
 	startFromTimestamp     *time.Time
 	lastProcessedTimestamp *time.Time
+	lastProcessedChangeset *Changeset
 	changesetsCh           chan *Changeset
 	errCh                  chan error
 }
@@ -75,14 +76,14 @@ func (l *NotifyListener) Dial(connConfig *pgx.ConnConfig) error {
 // ListenForChanges returns a channel that emits database changesets.
 func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset, chan error) {
 	l.logger.Info("Starting notify listener for `warp_pipe_new_changeset`")
+	l.store = store.NewChangesetStore(l.conn)
+
+	// NOTE: We start the listener here, which will begin buffering any notifications
 	err := l.conn.Listen("warp_pipe_new_changeset")
 	if err != nil {
 		l.logger.WithError(err).Fatal("failed to listen on notify channel")
 	}
 
-	l.store = store.NewChangesetStore(l.conn)
-
-	// loop - listen for notifications
 	go func() {
 		if l.startFromID != nil {
 			eventCh := make(chan *store.Event)
@@ -128,6 +129,7 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset,
 			}
 		}
 
+		// loop - listen for notifications
 		for {
 			msg, err := l.conn.WaitForNotification(ctx)
 			if err != nil {
@@ -168,6 +170,14 @@ func (l *NotifyListener) processMessage(msg *pgx.Notification) {
 }
 
 func (l *NotifyListener) processChangeset(event *store.Event) {
+	// NOTE: If the changeset ID is less than the ID of the last processed changeset, skip.
+	// This likely means that we've already processed the changeset when reading from the
+	// changesets table, and the connection is playing back buffered notifications.
+	// (see: `pgx.Conn.notifications`)
+	if l.lastProcessedChangeset != nil && event.ID <= l.lastProcessedChangeset.ID {
+		return
+	}
+
 	cs := &Changeset{
 		ID:        event.ID,
 		Kind:      ParseChangesetKind(event.Action),
@@ -235,6 +245,7 @@ func (l *NotifyListener) processChangeset(event *store.Event) {
 	}
 
 	l.lastProcessedTimestamp = &event.Timestamp
+	l.lastProcessedChangeset = cs
 	l.changesetsCh <- cs
 }
 
