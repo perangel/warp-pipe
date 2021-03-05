@@ -121,7 +121,7 @@ func prepareDeleteQuery(primaryKey []string, change *Changeset) (string, map[str
 	return sql, values
 }
 
-func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset) error {
+func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset, failOnDuplicate bool) error {
 	query, args := prepareInsertQuery(change)
 	_, err := targetDB.NamedExec(query, args)
 	if err != nil {
@@ -131,9 +131,12 @@ func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset) error {
 			return fmt.Errorf("failed to insert %s for query %s args %s: %+v", change, removeDuplicateSpaces(query), args, err)
 		}
 		if pqe.Code.Name() == "unique_violation" {
-			// Ignore duplicates
-			// TODO: Should they be updated instead?
-			log.Printf("duplicate row insert skipped %s:", change)
+			// Ignore duplicates or crash
+			if failOnDuplicate {
+				return fmt.Errorf("duplicate row insert failed %s", change)
+			}
+
+			log.Printf("duplicate row insert skipped %s", change)
 			// Always update, even on duplicate row.
 			err = updateColumnSequence(targetDB, change.Table, change.NewValues)
 			if err != nil {

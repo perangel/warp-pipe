@@ -22,4 +22,8 @@ type AxonConfig struct {
 
 	// start the axon run from the specified changeset id. defaults to 0.
 	StartFromID int64 `envconfig:"start_from_id" default:"0"`
+
+	// Fail instead of skip when a duplicate row is found during insert.
+	// Duplicates should never happen in some cases such as database migrations.
+	FailOnDuplicate bool `envconfig:"fail_on_duplicate" default:"false"`
 }

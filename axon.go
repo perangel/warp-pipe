@@ -299,7 +299,7 @@ func (a *Axon) processDelete(targetDB *sqlx.DB, change *Changeset) error {
 }
 
 func (a *Axon) processInsert(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset) error {
-	err := insertRow(sourceDB, targetDB, change)
+	err := insertRow(sourceDB, targetDB, change, a.Config.FailOnDuplicate)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("failed to INSERT row for table '%s'", change.Table)
