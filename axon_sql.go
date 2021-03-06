@@ -39,9 +39,27 @@ func prepareQueryArgs(changesetCols []*ChangesetColumn) ([]string, []string, map
 				c.Value = pq.Array(c.Value)
 			}
 		}
+
+		// TODO: We need to load a mapping of column names to types for all tables
+		// in the database, so that we can use it to lookup column types by column
+		// name. That will allow us to handle things like `bytea` specially.
+		//
+		// Swap the commented line below for the uncommented one to see the tests pass
+
+		// `getColumnType(columnName)` is a hypothetical helper fuction that can lookup
+		// a columns type name by column name.
+		//if t != nil && t.Kind() == reflect.String && c.Column == "type_bytea" {
+		if t != nil && t.Kind() == reflect.String && getColumnType(c.Column) == "bytea" {
+			preparedVal := fmt.Sprintf("'%s'", c.Value.(string))
+			colArgs = append(colArgs, preparedVal)
+			c.Value = preparedVal
+		} else {
+			colArgs = append(colArgs, fmt.Sprintf(":%s", c.Column))
+		}
+
 		cols = append(cols, c.Column)
-		colArgs = append(colArgs, fmt.Sprintf(":%s", c.Column))
 		values[c.Column] = c.Value
+
 	}
 
 	return cols, colArgs, values, nil
