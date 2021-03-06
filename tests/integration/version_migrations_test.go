@@ -23,6 +23,7 @@ type testData struct {
 	json    []byte
 	jsonb   []byte
 	array   []int32
+	bytea   []byte
 }
 
 var (
@@ -38,7 +39,8 @@ var (
 			type_boolean BOOLEAN,
 			type_json JSON,
 			type_jsonb JSONB,
-			type_array int4[]
+			type_array int4[],
+			type_bytea bytea
 		)`,
 		`CREATE TABLE empty_table (
 			id SERIAL PRIMARY KEY
@@ -157,6 +159,7 @@ func testRows() []testData {
 			json:    []byte(`{}`),
 			jsonb:   []byte(`{}`),
 			array:   make([]int32, 0),
+			bytea:   []byte(``),
 		},
 		// Fully populated fields.
 		{
@@ -166,6 +169,7 @@ func testRows() []testData {
 			json:    []byte(`{"name": "Alice", "age": 31, "city": "LA"}`),
 			jsonb:   []byte(`{"name": "Bob", "age": 39, "city": "London"}`),
 			array:   []int32{1, 2, 3, 4, 5},
+			bytea:   []byte(`abcdef`),
 		},
 	}
 }
@@ -182,13 +186,13 @@ func insertTestData(t *testing.T, config pgx.ConnConfig, nRowsX3 int, wg *sync.W
 
 	insertSQL := `
 		INSERT INTO
-			"testTable" (type_text, type_date, type_boolean, type_json, type_jsonb, type_array)
-		VALUES ($1, $2, $3, $4, $5, $6);`
+			"testTable" (type_text, type_date, type_boolean, type_json, type_jsonb, type_array, type_bytea)
+		VALUES ($1, $2, $3, $4, $5, $6, $7);`
 
 	for i := 0; i < nRowsX3; i++ {
 		rows := testRows()
 		for _, row := range rows {
-			_, err = conn.Exec(insertSQL, row.text, row.date, row.boolean, row.json, row.jsonb, row.array)
+			_, err = conn.Exec(insertSQL, row.text, row.date, row.boolean, row.json, row.jsonb, row.array, row.bytea)
 			if err != nil {
 				t.Fatalf("%s: Could not insert row in source database: %v", t.Name(), err)
 			}
@@ -332,7 +336,8 @@ func TestVersionMigration(t *testing.T) {
 			axon := warppipe.Axon{Config: &axonCfg}
 
 			t.Log("first pass sync")
-			axon.Run()
+			err = axon.Run()
+			require.NoError(t, err)
 
 			// wait for all our routines to complete
 			insertsWG.Wait()
@@ -340,7 +345,8 @@ func TestVersionMigration(t *testing.T) {
 			deletesWG.Wait()
 
 			t.Log("second pass sync. starting from beginning, and catching any stragglers")
-			axon.Run()
+			err = axon.Run()
+			require.NoError(t, err)
 
 			err = axon.Verify(schemas, includeTables, excludeTables)
 			require.NoError(t, err)
