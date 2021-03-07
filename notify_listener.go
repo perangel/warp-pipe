@@ -155,14 +155,14 @@ func (l *NotifyListener) processMessage(msg *pgx.Notification) {
 	parts := strings.Split(msg.Payload, "_")
 	eventID, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
-		log.WithError(err).WithField("changeset_id", parts[0]).
+		l.logger.WithError(err).WithField("changeset_id", parts[0]).
 			Error("failed to parse changeset ID from notification payload")
 		l.errCh <- err
 	}
 
 	event, err := l.store.GetByID(context.Background(), eventID)
 	if err != nil {
-		log.WithError(err).WithField("changeset_id", parts[0]).Error("failed to get changeset from store")
+		l.logger.WithError(err).WithField("changeset_id", parts[0]).Error("failed to get changeset from store")
 		l.errCh <- err
 	}
 
@@ -175,6 +175,7 @@ func (l *NotifyListener) processChangeset(event *store.Event) {
 	// changesets table, and the connection is playing back buffered notifications.
 	// (see: `pgx.Conn.notifications`)
 	if l.lastProcessedChangeset != nil && event.ID <= l.lastProcessedChangeset.ID {
+		l.logger.Infof("Skipping changest already processed changeset %s", event.ID)
 		return
 	}
 

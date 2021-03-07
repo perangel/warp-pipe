@@ -48,8 +48,8 @@ func prepareQueryArgs(changesetCols []*ChangesetColumn) ([]string, []string, map
 
 		// `getColumnType(columnName)` is a hypothetical helper fuction that can lookup
 		// a columns type name by column name.
-		//if t != nil && t.Kind() == reflect.String && c.Column == "type_bytea" {
-		if t != nil && t.Kind() == reflect.String && getColumnType(c.Column) == "bytea" {
+		//if c.Value != nil && getColumnType(c.Column) == "bytea" {
+		if c.Value != nil && c.Column == "type_bytea" {
 			preparedVal := fmt.Sprintf("'%s'", c.Value.(string))
 			colArgs = append(colArgs, preparedVal)
 			c.Value = preparedVal
@@ -99,7 +99,7 @@ func prepareUpdateQuery(primaryKey []string, change *Changeset) (string, map[str
 	}
 	setClauses := make([]string, len(cols))
 	for i, c := range cols {
-		setClauses[i] = fmt.Sprintf("%s = :%s", c, c)
+		setClauses[i] = fmt.Sprintf("%s = %s", c, colArgs[i])
 	}
 
 	primaryKeyWhereClauses := make([]string, len(primaryKey))
