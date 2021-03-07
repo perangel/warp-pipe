@@ -19,6 +19,9 @@ var sequenceColumns = make(map[string]string)
 // lists sequences not associated with any table column
 var orphanSequences []string
 
+// for each table, maps column names to their postgres data types
+var columnTypes = (map[string]map[string]string{})
+
 func checkTargetVersion(conn *sqlx.DB) error {
 	var serverVersion string
 	err := conn.Get(&serverVersion, "SHOW server_version;")
@@ -217,5 +220,72 @@ func updateOrphanSequences(sourceDB *sqlx.DB, targetDB *sqlx.DB, table string, c
 		}
 		log.Printf("orphan sequence set %s: %v", sequenceName, setVal)
 	}
+	return nil
+}
+
+// loadColumnTypes loads the data types for all the columns in the database
+func loadColumnTypes(conn *sqlx.DB) error {
+
+	var rows []struct {
+		SchemaName string `db:"table_schema"`
+		TableName  string `db:"table_name"`
+		ColumnName string `db:"column_name"`
+		DataType   string `db:"data_type"`
+	}
+
+	err := conn.Select(&rows, `
+		SELECT table_schema, table_name, column_name, data_type 
+		FROM information_schema.columns 
+		WHERE table_schema NOT IN ('pg_catalog', 'information_schema', 'warp_pipe');`,
+	)
+	if err != nil {
+		return fmt.Errorf("could not execute query to fetch column data types: %w", err)
+	}
+
+	for _, r := range rows {
+		tableName := fmt.Sprintf(`"%s"."%s"`, r.SchemaName, r.TableName)
+		if _, ok := columnTypes[tableName]; !ok {
+			columnTypes[tableName] = make(map[string]string)
+		}
+
+		columnTypes[tableName][r.ColumnName] = r.DataType
+	}
+
+	return nil
+}
+
+// getColumnType fetches the  data type for a column in the database
+func getColumnType(schema, table, column string) (string, error) {
+
+	tableName := fmt.Sprintf(`"%s"."%s"`, schema, table)
+	colType, ok := columnTypes[tableName][column]
+	if !ok {
+		return "", fmt.Errorf(`column type not found for column %s in table "%s"."%s"`, column, schema, table)
+	}
+
+	return colType, nil
+}
+
+// setColumnTypes updates the column data type for all columns in a changeset
+func setColumnTypes(change *Changeset) error {
+
+	for _, c := range change.OldValues {
+		colType, err := getColumnType(change.Schema, change.Table, c.Column)
+		if err != nil {
+			return fmt.Errorf(`failed to update column type for OldValue: %w`, err)
+		}
+
+		c.Type = colType
+	}
+
+	for _, c := range change.NewValues {
+		colType, err := getColumnType(change.Schema, change.Table, c.Column)
+		if err != nil {
+			return fmt.Errorf(`failed to update column type for NewValue: %w`, err)
+		}
+
+		c.Type = colType
+	}
+
 	return nil
 }

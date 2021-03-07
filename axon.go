@@ -107,6 +107,12 @@ func (a *Axon) Run() error {
 		return fmt.Errorf("unable to load source DB orphan sequences: %w", err)
 	}
 
+	// columnTypes need to be explicitly loaded for Notify Listener
+	err = loadColumnTypes(sourceDBConn)
+	if err != nil {
+		return fmt.Errorf("unable to load column data types: %w", err)
+	}
+
 	// Create a notify listener and start from the configured changeset id.
 	listener := NewNotifyListener(StartFromID(a.Config.StartFromID))
 
@@ -143,6 +149,13 @@ func (a *Axon) Run() error {
 		case err := <-errs:
 			return fmt.Errorf("listener received an error: %w", err)
 		case change := <-changes:
+
+			// Update the column types since it is not available when using notify listener
+			err = setColumnTypes(change)
+			if err != nil {
+				return fmt.Errorf("could not set column type for change - %s: %w", change, err)
+			}
+
 			// Override the schema if a target database schema has been configured.
 			if a.Config.TargetDBSchema != "" {
 				change.Schema = a.Config.TargetDBSchema
