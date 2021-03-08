@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"reflect"
 	"strings"
 	"syscall"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/perangel/warp-pipe/db"
+	"github.com/perangel/warp-pipe/internal/store"
 	"github.com/sirupsen/logrus"
 )
 
@@ -266,11 +268,87 @@ func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
 			return fmt.Errorf("failed to scan the target checksum for table %s.%s: %w", table.Schema, table.Name, err)
 		}
 
-		if sourceChecksum != targetChecksum {
-			return fmt.Errorf("checksums differ for table %s.%s", table.Schema, table.Name)
+		if sourceChecksum == targetChecksum {
+			a.Logger.Infof("checksums match for table %s.%s", table.Schema, table.Name)
+			continue
 		}
+
+		where := ""
+		// TODO: axon Verify just checks all for now, but should support limits in the future.
+		// if lastID > 0 {
+		// 	where = fmt.Sprintf("WHERE id <= %d", lastID)
+		// }
+
+		a.Logger.Errorf("checksums differ, source: %s target: %s", sourceChecksum, targetChecksum)
+		a.Logger.Info("beginning verbose check")
+		// Compare changeset records one by one
+
+		// TODO: Confirm total changeset count
+		// TODO: Confirm changeset start and end IDs match
+
+		sql = fmt.Sprintf(`
+			SELECT
+				-- excludes the timestamp field
+				id, action, schema_name, table_name, new_values, old_values
+			FROM warp_pipe.changesets %s
+			ORDER BY id`, where)
+
+		sRows, err := sourceDBConn.Query(sql)
+		if err != nil {
+			return fmt.Errorf("failed to get source changesets table rows: %w", err)
+		}
+
+		tRows, err := targetDBConn.Query(sql)
+		if err != nil {
+			return fmt.Errorf("failed to get target changesets table rows: %w", err)
+		}
+
+		diffFound := false
+		for sRows.Next() {
+			if !tRows.Next() {
+				break
+			}
+
+			sEvent, err := scanRow(sRows)
+			if err != nil {
+				return fmt.Errorf("failed to load source changeset row: %w", err)
+			}
+
+			tEvent, err := scanRow(tRows)
+			if err != nil {
+				return fmt.Errorf("failed to load target changeset row: %w", err)
+			}
+
+			if !reflect.DeepEqual(sEvent, tEvent) {
+				a.Logger.Errorf("source/target rows differ, source: %+v target: %+v", sEvent, tEvent)
+				diffFound = true
+			}
+		}
+
+		// TODO: Compare tables directly, requires DB maintenance mode enabled to avoid new data. Is needed?
+		if diffFound {
+			return fmt.Errorf("checksums differ, source: %s target: %s", sourceChecksum, targetChecksum)
+		}
+
+		return fmt.Errorf("checksums differ, this error should never happen")
 	}
 	return nil
+}
+
+func scanRow(rows *pgx.Rows) (*store.Event, error) {
+	var evt store.Event
+	err := rows.Scan(
+		&evt.ID,
+		//&evt.Timestamp ignored
+		&evt.Action,
+		&evt.SchemaName,
+		&evt.TableName,
+		// &evt.OID ignored
+		&evt.NewValues,
+		&evt.OldValues,
+	)
+
+	return &evt, err
 }
 
 // Shutdown the Axon worker.

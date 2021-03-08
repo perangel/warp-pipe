@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx"
@@ -27,6 +28,16 @@ type Event struct {
 	OID        int64
 	NewValues  []byte
 	OldValues  []byte
+}
+
+// String implements the Stringer interface to prettyprint the struct
+func (e *Event) String() string {
+	newValues := strings.Replace(string(e.NewValues), "\"", "'", -1)
+	newValues = strings.Replace(newValues, "\n", "", -1)
+	oldValues := strings.Replace(string(e.OldValues), "\"", "'", -1)
+	oldValues = strings.Replace(oldValues, "\n", "", -1)
+	return fmt.Sprintf("ID: %d, Timestamp: %s, Action: %s, TableName: %s, NewValues: %s, OldValues: %s",
+		e.ID, e.Timestamp, e.Action, e.TableName, newValues, oldValues)
 }
 
 // EventStore is the interface for providing access to events storage.
@@ -118,13 +129,13 @@ func (s *ChangesetStore) GetSinceID(ctx context.Context, eventID int64, eventCh 
 			ts,
 			action,
 			schema_name,
-			table_name,	
+			table_name,
 			relid,
 			new_values,
 			old_values
 		FROM warp_pipe.changesets
 			WHERE id >= $1
-			ORDER BY id 
+			ORDER BY id
 			LIMIT %d
 			OFFSET %d`
 
@@ -157,7 +168,7 @@ func (s *ChangesetStore) GetSinceTimestamp(ctx context.Context, since time.Time,
 			ts,
 			action,
 			schema_name,
-			table_name,	
+			table_name,
 			relid,
 			new_values,
 			old_values

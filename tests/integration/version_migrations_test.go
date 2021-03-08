@@ -300,6 +300,13 @@ func TestVersionMigration(t *testing.T) {
 			err = db.Prepare(wpConn, []string{"public"}, []string{"testTable"}, []string{})
 			require.NoError(t, err)
 
+			// Setup WP on target
+			targetConn, err := pgx.Connect(targetDBConfig)
+			require.NoError(t, err)
+
+			err = db.Prepare(targetConn, []string{"public"}, []string{"testTable"}, []string{})
+			require.NoError(t, err)
+
 			// write, update, delete to produce change sets
 			var insertsWG, updatesWG, deletesWG sync.WaitGroup
 			workersCount := 5
