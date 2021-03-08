@@ -291,6 +291,7 @@ func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
 }
 
 func (a *Axon) VerifyChangesets(lastID int64) error {
+	a.Logger.Info("beginning verbose check")
 	sourceDBConn, targetDBConn, err := a.getDB()
 	if err != nil {
 		return fmt.Errorf("cannot connect to DB: %w", err)
@@ -299,12 +300,11 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 	defer targetDBConn.Close()
 
 	where := ""
-
 	if lastID > 0 {
 		where = fmt.Sprintf("WHERE id <= %d", lastID)
+		a.Logger.Infof("checking first changeset to changeset id: %d", lastID)
 	}
 
-	a.Logger.Info("beginning verbose check")
 	// Compare changeset records one by one
 
 	// TODO: Confirm total changeset count
@@ -327,7 +327,8 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 		return fmt.Errorf("failed to get target changesets table rows: %w", err)
 	}
 
-	diffFound := false
+	countLog := 0
+	countDiff := 0
 	for sRows.Next() {
 		if !tRows.Next() {
 			return fmt.Errorf("target missing expected changeset records")
@@ -343,13 +344,25 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 			return fmt.Errorf("failed to load target changeset row: %w", err)
 		}
 
+		countLog++
+		if countLog == 1000 {
+			// Log a message every 1000 changeset records
+			a.Logger.Infof("processing changeset id: %d", tEvent.ID)
+			countLog = 0
+		}
+
 		if !reflect.DeepEqual(sEvent, tEvent) {
 			a.Logger.Errorf("source/target rows differ, source: %+v target: %+v", sEvent, tEvent)
-			diffFound = true
+			countDiff++
+		}
+		if countDiff == 100 {
+			a.Logger.Errorf("100 different records found, stopping check")
+			break
 		}
 	}
 
 	// TODO: Compare tables directly, requires DB maintenance mode enabled to avoid new data. Is needed?
+	diffFound := countDiff > 0
 	if diffFound {
 		a.Logger.Info("verbose check failed")
 		return fmt.Errorf("changeset records checksums differ")
