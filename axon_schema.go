@@ -52,14 +52,14 @@ func checkTargetVersion(conn *sqlx.DB) error {
 	return nil
 }
 
-func printSourceStats(conn *sqlx.DB) error {
+func printStats(conn *sqlx.DB, name string) (int, error) {
 	var changesetCount int
 	err := conn.Get(&changesetCount, "SELECT count(id) FROM warp_pipe.changesets")
 	if err != nil {
-		return err
+		return 0, err
 	}
-	log.Printf("Changesets Found in Source: %d", changesetCount)
-	return nil
+	log.Printf("Changesets found in %s: %d", name, changesetCount)
+	return changesetCount, nil
 }
 
 func loadPrimaryKeys(conn *sqlx.DB) error {
@@ -234,8 +234,8 @@ func loadColumnTypes(conn *sqlx.DB) error {
 	}
 
 	err := conn.Select(&rows, `
-		SELECT table_schema, table_name, column_name, data_type 
-		FROM information_schema.columns 
+		SELECT table_schema, table_name, column_name, data_type
+		FROM information_schema.columns
 		WHERE table_schema NOT IN ('pg_catalog', 'information_schema', 'warp_pipe');`,
 	)
 	if err != nil {

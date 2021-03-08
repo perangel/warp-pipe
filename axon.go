@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"reflect"
 	"strings"
 	"syscall"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/perangel/warp-pipe/db"
+	"github.com/perangel/warp-pipe/internal/store"
 	"github.com/sirupsen/logrus"
 )
 
@@ -87,9 +89,18 @@ func (a *Axon) Run() error {
 
 	// TODO: (1) add support for selecting the warp-pipe mode
 	// TODO: (2) only print the source stats if that is audit
-	err = printSourceStats(sourceDBConn)
+	sourceCount, err := printStats(sourceDBConn, "source")
 	if err != nil {
 		return fmt.Errorf("unable to get source db stats: %w", err)
+	}
+	targetCount, err := printStats(targetDBConn, "target")
+	if err != nil {
+		return fmt.Errorf("unable to get target db stats: %w", err)
+	}
+
+	if sourceCount == targetCount {
+		a.Logger.Info("changeset counts match")
+		return nil
 	}
 
 	err = loadPrimaryKeys(targetDBConn)
@@ -182,14 +193,9 @@ func (a *Axon) Run() error {
 	}
 }
 
-func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
+func (a *Axon) getDB() (sourceDBConn *pgx.Conn, targetDBConn *pgx.Conn, err error) {
 
-	if a.Logger == nil {
-		a.Logger = logrus.New()
-		a.Logger.SetFormatter(&logrus.JSONFormatter{})
-	}
-
-	sourceDBConn, err := pgx.Connect(pgx.ConnConfig{
+	sourceDBConn, err = pgx.Connect(pgx.ConnConfig{
 		Host:     a.Config.SourceDBHost,
 		Port:     uint16(a.Config.SourceDBPort),
 		User:     a.Config.SourceDBUser,
@@ -197,15 +203,10 @@ func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
 		Database: a.Config.SourceDBName,
 	})
 	if err != nil {
-		return fmt.Errorf("unable to connect to source database: %w", err)
+		return nil, nil, fmt.Errorf("unable to connect to source database: %w", err)
 	}
 
-	err = db.PrepareForDataIntegrityChecks(sourceDBConn)
-	if err != nil {
-		return fmt.Errorf("unable to prepare source database for Integrity checks: %w", err)
-	}
-
-	targetDBConn, err := pgx.Connect(pgx.ConnConfig{
+	targetDBConn, err = pgx.Connect(pgx.ConnConfig{
 		Host:     a.Config.TargetDBHost,
 		Port:     uint16(a.Config.TargetDBPort),
 		User:     a.Config.TargetDBUser,
@@ -213,7 +214,22 @@ func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
 		Database: a.Config.TargetDBName,
 	})
 	if err != nil {
-		return fmt.Errorf("unable to connect to target database: %w", err)
+		return nil, nil, fmt.Errorf("unable to connect to target database: %w", err)
+	}
+	return
+}
+
+func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
+	sourceDBConn, targetDBConn, err := a.getDB()
+	if err != nil {
+		return fmt.Errorf("cannot connect to DB: %w", err)
+	}
+	defer sourceDBConn.Close()
+	defer targetDBConn.Close()
+
+	err = db.PrepareForDataIntegrityChecks(sourceDBConn)
+	if err != nil {
+		return fmt.Errorf("unable to prepare source database for Integrity checks: %w", err)
 	}
 
 	err = db.PrepareForDataIntegrityChecks(targetDBConn)
@@ -267,10 +283,108 @@ func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
 		}
 
 		if sourceChecksum != targetChecksum {
-			return fmt.Errorf("checksums differ for table %s.%s", table.Schema, table.Name)
+
+			return fmt.Errorf("checksums differ, source: %s target: %s", sourceChecksum, targetChecksum)
 		}
 	}
 	return nil
+}
+
+func (a *Axon) VerifyChangesets(lastID int64) error {
+	a.Logger.Info("beginning verbose check")
+	sourceDBConn, targetDBConn, err := a.getDB()
+	if err != nil {
+		return fmt.Errorf("cannot connect to DB: %w", err)
+	}
+	defer sourceDBConn.Close()
+	defer targetDBConn.Close()
+
+	where := ""
+	if lastID > 0 {
+		where = fmt.Sprintf("WHERE id <= %d", lastID)
+		a.Logger.Infof("checking first changeset to changeset id: %d", lastID)
+	}
+
+	// Compare changeset records one by one
+
+	// TODO: Confirm total changeset count
+	// TODO: Confirm changeset start and end IDs match
+
+	sql := fmt.Sprintf(`
+			SELECT
+				-- excludes the timestamp field
+				id, action, schema_name, table_name, new_values, old_values
+			FROM warp_pipe.changesets %s
+			ORDER BY id`, where)
+
+	sRows, err := sourceDBConn.Query(sql)
+	if err != nil {
+		return fmt.Errorf("failed to get source changesets table rows: %w", err)
+	}
+
+	tRows, err := targetDBConn.Query(sql)
+	if err != nil {
+		return fmt.Errorf("failed to get target changesets table rows: %w", err)
+	}
+
+	countLog := 0
+	countDiff := 0
+	for sRows.Next() {
+		if !tRows.Next() {
+			return fmt.Errorf("target missing expected changeset records")
+		}
+
+		sEvent, err := scanRow(sRows)
+		if err != nil {
+			return fmt.Errorf("failed to load source changeset row: %w", err)
+		}
+
+		tEvent, err := scanRow(tRows)
+		if err != nil {
+			return fmt.Errorf("failed to load target changeset row: %w", err)
+		}
+
+		countLog++
+		if countLog == 1000 {
+			// Log a message every 1000 changeset records
+			a.Logger.Infof("processing changeset id: %d", tEvent.ID)
+			countLog = 0
+		}
+
+		if !reflect.DeepEqual(sEvent, tEvent) {
+			a.Logger.Errorf("source/target rows differ, source: %+v target: %+v", sEvent, tEvent)
+			countDiff++
+		}
+		if countDiff == 100 {
+			a.Logger.Errorf("100 different records found, stopping check")
+			break
+		}
+	}
+
+	// TODO: Compare tables directly, requires DB maintenance mode enabled to avoid new data. Is needed?
+	diffFound := countDiff > 0
+	if diffFound {
+		a.Logger.Info("verbose check failed")
+		return fmt.Errorf("changeset records checksums differ")
+	}
+	a.Logger.Info("verbose check passed")
+	return nil
+}
+
+func scanRow(rows *pgx.Rows) (*store.Event, error) {
+	var evt store.Event
+	err := rows.Scan(
+		&evt.ID,
+		//&evt.Timestamp ignored
+		&evt.Action,
+		&evt.SchemaName,
+		&evt.TableName,
+		// &evt.OID ignored
+		&evt.NewValues,
+		&evt.OldValues,
+	)
+
+	return &evt, err
 }
 
 // Shutdown the Axon worker.

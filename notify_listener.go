@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx"
@@ -44,14 +45,17 @@ type NotifyListener struct {
 	lastProcessedChangeset *Changeset
 	changesetsCh           chan *Changeset
 	errCh                  chan error
+	listenerLock           sync.Mutex
+	orderedEvents          map[int64]*store.Event
 }
 
 // NewNotifyListener returns a new NotifyListener.
 func NewNotifyListener(opts ...NotifyOption) *NotifyListener {
 	l := &NotifyListener{
-		logger:       log.WithFields(log.Fields{"component": "listener"}),
-		changesetsCh: make(chan *Changeset),
-		errCh:        make(chan error),
+		logger:        log.WithFields(log.Fields{"component": "listener"}),
+		changesetsCh:  make(chan *Changeset),
+		errCh:         make(chan error),
+		orderedEvents: make(map[int64]*store.Event),
 	}
 
 	for _, opt := range opts {
@@ -96,7 +100,8 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset,
 			for {
 				select {
 				case c := <-eventCh:
-					l.processChangeset(c)
+					l.logger.Debugf("processIDLoop: changeset %d", c.ID)
+					l.handleChangeset(c)
 				case err := <-errCh:
 					log.WithError(err).Fatal("encountered an error while reading changesets")
 					l.errCh <- err
@@ -117,7 +122,8 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset,
 			for {
 				select {
 				case c := <-eventCh:
-					l.processChangeset(c)
+					l.logger.Debugf("processTimestampLoop: changeset %d", c.ID)
+					l.handleChangeset(c)
 				case err := <-errCh:
 					log.WithError(err).Fatal("encountered an error while reading changesets")
 					l.errCh <- err
@@ -166,18 +172,59 @@ func (l *NotifyListener) processMessage(msg *pgx.Notification) {
 		l.errCh <- err
 	}
 
-	l.processChangeset(event)
+	l.logger.Debugf("processMessage: changeset %d", event.ID)
+	l.handleChangeset(event)
+}
+
+// handleChangesets implements a strict ordered buffer queue from unordered
+// input to force changesets to be processed in order.
+func (l *NotifyListener) handleChangeset(event *store.Event) {
+	// TODO: Is this queue a workaround for a bug? It solves the problem, but
+	// seems like a bug. Why aren't these in order to start? -B
+
+	l.listenerLock.Lock()
+	defer l.listenerLock.Unlock()
+	//l.logger.Infof("Current record id: %d", event.ID)
+
+	if l.lastProcessedChangeset == nil {
+		l.processChangeset(event)
+		return
+	}
+	if event.ID == l.lastProcessedChangeset.ID {
+		// This likely means that we've already processed the changeset when reading from the
+		// changesets table, and the connection is playing back buffered notifications.
+		// (see: `pgx.Conn.notifications`)
+		l.logger.Infof("Skipping duplicate record id: %d", event.ID)
+		return
+	}
+
+	nextChangesetID := l.lastProcessedChangeset.ID + 1
+	l.logger.Infof("Seeking record id: %d", nextChangesetID)
+
+	if nextChangesetID == event.ID {
+		l.processChangeset(event)
+		return
+	}
+
+	// Current record is NOT next, store it.
+	l.logger.Infof("Storing OUT-OF-ORDER unprocessed record id: %d", event.ID)
+	l.orderedEvents[event.ID] = event
+
+	for {
+		nextEvent, ok := l.orderedEvents[nextChangesetID]
+		if !ok {
+			return
+		}
+		delete(l.orderedEvents, nextChangesetID)
+		l.logger.Infof("Found next unprocessed record id: %d", event.ID)
+
+		l.processChangeset(nextEvent)
+		nextChangesetID = l.lastProcessedChangeset.ID + 1
+	}
 }
 
 func (l *NotifyListener) processChangeset(event *store.Event) {
-	// NOTE: If the changeset ID is less than the ID of the last processed changeset, skip.
-	// This likely means that we've already processed the changeset when reading from the
-	// changesets table, and the connection is playing back buffered notifications.
-	// (see: `pgx.Conn.notifications`)
-	if l.lastProcessedChangeset != nil && event.ID <= l.lastProcessedChangeset.ID {
-		l.logger.Infof("Skipping changest already processed changeset %s", event.ID)
-		return
-	}
+	l.logger.Infof("Processing record id: %d", event.ID)
 
 	cs := &Changeset{
 		ID:        event.ID,
@@ -186,7 +233,6 @@ func (l *NotifyListener) processChangeset(event *store.Event) {
 		Table:     event.TableName,
 		Timestamp: event.Timestamp,
 	}
-
 	if event.NewValues != nil {
 		var newValues map[string]interface{}
 		err := json.Unmarshal(event.NewValues, &newValues)

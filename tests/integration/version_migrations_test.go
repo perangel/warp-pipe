@@ -293,15 +293,23 @@ func TestVersionMigration(t *testing.T) {
 			includeTables := make([]string, 0)
 			excludeTables := make([]string, 0)
 
+			// Setup WP on source
 			wpConn, err := pgx.Connect(srcDBConfig)
 			require.NoError(t, err)
 
 			err = db.Prepare(wpConn, []string{"public"}, []string{"testTable"}, []string{})
 			require.NoError(t, err)
 
+			// Setup WP on target
+			targetConn, err := pgx.Connect(targetDBConfig)
+			require.NoError(t, err)
+
+			err = db.Prepare(targetConn, []string{"public"}, []string{"testTable"}, []string{})
+			require.NoError(t, err)
+
 			// write, update, delete to produce change sets
 			var insertsWG, updatesWG, deletesWG sync.WaitGroup
-			workersCount := 20
+			workersCount := 10
 			for i := 0; i < workersCount; i++ {
 				insertsWG.Add(1)
 				go insertTestData(t, srcDBConfig, 10, &insertsWG)
@@ -309,12 +317,12 @@ func TestVersionMigration(t *testing.T) {
 
 			for i := 0; i < workersCount; i++ {
 				updatesWG.Add(1)
-				go updateTestData(t, srcDBConfig, 30, &updatesWG)
+				go updateTestData(t, srcDBConfig, 10, &updatesWG)
 			}
 
 			for i := 0; i < workersCount; i++ {
 				deletesWG.Add(1)
-				go deleteTestData(t, srcDBConfig, 30, &deletesWG)
+				go deleteTestData(t, srcDBConfig, 10, &deletesWG)
 			}
 
 			// sync source and target with Axon
@@ -331,9 +339,12 @@ func TestVersionMigration(t *testing.T) {
 				TargetDBPass:               targetDBConfig.Password,
 				TargetDBSchema:             "public",
 				ShutdownAfterLastChangeset: true,
+				FailOnDuplicate:            true,
 			}
 
 			axon := warppipe.Axon{Config: &axonCfg}
+
+			time.Sleep(100 * time.Millisecond) // allow the writes to be occur.
 
 			t.Log("first pass sync")
 			err = axon.Run()
@@ -344,12 +355,29 @@ func TestVersionMigration(t *testing.T) {
 			updatesWG.Wait()
 			deletesWG.Wait()
 
-			t.Log("second pass sync. starting from beginning, and catching any stragglers")
+			for i := 0; i < workersCount; i++ {
+				insertsWG.Add(1)
+				go insertTestData(t, srcDBConfig, 10, &insertsWG)
+			}
+			insertsWG.Wait()
+
+			t.Log("second pass sync. starting from last ID in target, catching any stragglers")
+			row, err := targetConn.Query("SELECT max(id) from warp_pipe.changesets")
+			require.True(t, row.Next())
+			var count int64
+			row.Scan(&count)
+			t.Logf("last target changeset id: %d", count)
+
+			axon.Config.StartFromID = count + 1
+
 			err = axon.Run()
 			require.NoError(t, err)
 
-			err = axon.Verify(schemas, includeTables, excludeTables)
-			require.NoError(t, err)
+			errVerify := axon.Verify(schemas, includeTables, excludeTables)
+			errVerifyChangesets := axon.VerifyChangesets(-1)
+
+			require.NoError(t, errVerify)
+			require.NoError(t, errVerifyChangesets)
 		})
 	}
 }
