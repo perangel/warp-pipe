@@ -374,7 +374,7 @@ func TestVersionMigration(t *testing.T) {
 			require.NoError(t, err)
 
 			errVerify := axon.Verify(schemas, includeTables, excludeTables)
-			errVerifyChangesets := axon.VerifyChangesets()
+			errVerifyChangesets := axon.VerifyChangesets(-1)
 
 			require.NoError(t, errVerify)
 			require.NoError(t, errVerifyChangesets)

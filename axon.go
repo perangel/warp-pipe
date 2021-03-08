@@ -290,7 +290,7 @@ func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
 	return nil
 }
 
-func (a *Axon) VerifyChangesets() error {
+func (a *Axon) VerifyChangesets(lastID int64) error {
 	sourceDBConn, targetDBConn, err := a.getDB()
 	if err != nil {
 		return fmt.Errorf("cannot connect to DB: %w", err)
@@ -299,10 +299,10 @@ func (a *Axon) VerifyChangesets() error {
 	defer targetDBConn.Close()
 
 	where := ""
-	// TODO: axon Verify just checks all for now, but should support limits in the future.
-	// if lastID > 0 {
-	// 	where = fmt.Sprintf("WHERE id <= %d", lastID)
-	// }
+
+	if lastID > 0 {
+		where = fmt.Sprintf("WHERE id <= %d", lastID)
+	}
 
 	a.Logger.Info("beginning verbose check")
 	// Compare changeset records one by one
