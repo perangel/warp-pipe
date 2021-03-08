@@ -82,18 +82,18 @@ func (a *Axon) Run() error {
 		return fmt.Errorf("unable to connect to target database: %w", err)
 	}
 
-	err = checkTargetVersion(targetDBConn)
+	err = a.checkTargetVersion(targetDBConn)
 	if err != nil {
 		return fmt.Errorf("unable to check target database version: %w", err)
 	}
 
 	// TODO: (1) add support for selecting the warp-pipe mode
 	// TODO: (2) only print the source stats if that is audit
-	sourceCount, err := printStats(sourceDBConn, "source")
+	sourceCount, err := a.printStats(sourceDBConn, "source")
 	if err != nil {
 		return fmt.Errorf("unable to get source db stats: %w", err)
 	}
-	targetCount, err := printStats(targetDBConn, "target")
+	targetCount, err := a.printStats(targetDBConn, "target")
 	if err != nil {
 		return fmt.Errorf("unable to get target db stats: %w", err)
 	}
@@ -103,17 +103,17 @@ func (a *Axon) Run() error {
 		return nil
 	}
 
-	err = loadPrimaryKeys(targetDBConn)
+	err = a.loadPrimaryKeys(targetDBConn)
 	if err != nil {
 		return fmt.Errorf("unable to load target DB primary keys: %w", err)
 	}
 
-	err = loadColumnSequences(targetDBConn)
+	err = a.loadColumnSequences(targetDBConn)
 	if err != nil {
 		return fmt.Errorf("unable to load target DB column sequences: %w", err)
 	}
 
-	err = loadOrphanSequences(sourceDBConn)
+	err = a.loadOrphanSequences(sourceDBConn)
 	if err != nil {
 		return fmt.Errorf("unable to load source DB orphan sequences: %w", err)
 	}
@@ -408,14 +408,14 @@ func (a *Axon) processChange(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Chang
 }
 
 func (a *Axon) processDelete(targetDB *sqlx.DB, change *Changeset) error {
-	pk, err := getPrimaryKeyForChange(change)
+	pk, err := a.getPrimaryKeyForChange(change)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("unable to process DELETE for table '%s', changeset has no primary key", change.Table)
 		return err
 	}
 
-	err = deleteRow(targetDB, change, pk)
+	err = a.deleteRow(targetDB, change, pk)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("failed to DELETE row for table '%s' (pk: %s)", change.Table, pk)
@@ -426,7 +426,7 @@ func (a *Axon) processDelete(targetDB *sqlx.DB, change *Changeset) error {
 }
 
 func (a *Axon) processInsert(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset) error {
-	err := insertRow(sourceDB, targetDB, change, a.Config.FailOnDuplicate)
+	err := a.insertRow(sourceDB, targetDB, change, a.Config.FailOnDuplicate)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("failed to INSERT row for table '%s'", change.Table)
@@ -437,14 +437,14 @@ func (a *Axon) processInsert(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Chang
 }
 
 func (a *Axon) processUpdate(targetDB *sqlx.DB, change *Changeset) error {
-	pk, err := getPrimaryKeyForChange(change)
+	pk, err := a.getPrimaryKeyForChange(change)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("unable to process UPDATE for table '%s', changeset has no primary key", change.Table)
 		return err
 	}
 
-	err = updateRow(targetDB, change, pk)
+	err = a.updateRow(targetDB, change, pk)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("failed to UPDATE row for table '%s' (pk: %s)", change.Table, pk)
