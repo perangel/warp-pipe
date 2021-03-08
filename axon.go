@@ -313,7 +313,7 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 	sql := fmt.Sprintf(`
 			SELECT
 				-- excludes the timestamp field
-				id, action, schema_name, table_name, new_values, old_values
+				action, schema_name, table_name, new_values, old_values
 			FROM warp_pipe.changesets %s
 			ORDER BY id`, where)
 
@@ -347,7 +347,7 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 		countLog++
 		if countLog == 1000 {
 			// Log a message every 1000 changeset records
-			a.Logger.Infof("processing changeset id: %d", tEvent.ID)
+			a.Logger.Infof("1000 changesets processed", tEvent.ID)
 			countLog = 0
 		}
 
@@ -374,7 +374,7 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 func scanRow(rows *pgx.Rows) (*store.Event, error) {
 	var evt store.Event
 	err := rows.Scan(
-		&evt.ID,
+		//&evt.ID, Not Sequential :(
 		//&evt.Timestamp ignored
 		&evt.Action,
 		&evt.SchemaName,
