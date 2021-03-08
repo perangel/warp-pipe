@@ -89,9 +89,18 @@ func (a *Axon) Run() error {
 
 	// TODO: (1) add support for selecting the warp-pipe mode
 	// TODO: (2) only print the source stats if that is audit
-	err = printSourceStats(sourceDBConn)
+	sourceCount, err := printStats(sourceDBConn, "source")
 	if err != nil {
 		return fmt.Errorf("unable to get source db stats: %w", err)
+	}
+	targetCount, err := printStats(targetDBConn, "target")
+	if err != nil {
+		return fmt.Errorf("unable to get target db stats: %w", err)
+	}
+
+	if sourceCount == targetCount {
+		a.Logger.Info("changeset counts match")
+		return nil
 	}
 
 	err = loadPrimaryKeys(targetDBConn)
@@ -321,7 +330,7 @@ func (a *Axon) VerifyChangesets() error {
 	diffFound := false
 	for sRows.Next() {
 		if !tRows.Next() {
-			break
+			return fmt.Errorf("target missing expected changeset records")
 		}
 
 		sEvent, err := scanRow(sRows)
