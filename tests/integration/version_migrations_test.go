@@ -293,6 +293,7 @@ func TestVersionMigration(t *testing.T) {
 			includeTables := make([]string, 0)
 			excludeTables := make([]string, 0)
 
+			// Setup WP on source
 			wpConn, err := pgx.Connect(srcDBConfig)
 			require.NoError(t, err)
 
@@ -301,7 +302,7 @@ func TestVersionMigration(t *testing.T) {
 
 			// write, update, delete to produce change sets
 			var insertsWG, updatesWG, deletesWG sync.WaitGroup
-			workersCount := 20
+			workersCount := 5
 			for i := 0; i < workersCount; i++ {
 				insertsWG.Add(1)
 				go insertTestData(t, srcDBConfig, 10, &insertsWG)
@@ -309,12 +310,12 @@ func TestVersionMigration(t *testing.T) {
 
 			for i := 0; i < workersCount; i++ {
 				updatesWG.Add(1)
-				go updateTestData(t, srcDBConfig, 30, &updatesWG)
+				go updateTestData(t, srcDBConfig, 10, &updatesWG)
 			}
 
 			for i := 0; i < workersCount; i++ {
 				deletesWG.Add(1)
-				go deleteTestData(t, srcDBConfig, 30, &deletesWG)
+				go deleteTestData(t, srcDBConfig, 10, &deletesWG)
 			}
 
 			// sync source and target with Axon
