@@ -47,6 +47,7 @@ type NotifyListener struct {
 	errCh                  chan error
 	listenerLock           sync.Mutex
 	orderedEvents          map[int64]*store.Event
+	countOutOfOrder        int
 }
 
 // NewNotifyListener returns a new NotifyListener.
@@ -203,12 +204,19 @@ func (l *NotifyListener) handleChangeset(event *store.Event) {
 
 	if nextChangesetID == event.ID {
 		l.processChangeset(event)
+		l.countOutOfOrder = 0 //reset the count
 		return
 	}
 
 	// Current record is NOT next, store it.
 	l.logger.Infof("Storing OUT-OF-ORDER unprocessed record id: %d", event.ID)
+	l.countOutOfOrder++
 	l.orderedEvents[event.ID] = event
+
+	if l.countOutOfOrder > 100 {
+		l.logger.Infof("Out of order count reached 100+, assuming changeset ID gap, seeking record id: %d", nextChangesetID)
+		nextChangesetID++
+	}
 
 	for {
 		nextEvent, ok := l.orderedEvents[nextChangesetID]
@@ -219,6 +227,7 @@ func (l *NotifyListener) handleChangeset(event *store.Event) {
 		l.logger.Infof("Found next unprocessed record id: %d", event.ID)
 
 		l.processChangeset(nextEvent)
+		l.countOutOfOrder = 0 //reset the count
 		nextChangesetID = l.lastProcessedChangeset.ID + 1
 	}
 }
