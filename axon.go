@@ -125,7 +125,8 @@ func (a *Axon) Run() error {
 	}
 
 	// Create a notify listener and start from the configured changeset id.
-	listener := NewNotifyListener(StartFromID(a.Config.StartFromID))
+	listenerLog := a.Logger.WithFields(logrus.Fields{"component": "listener"})
+	listener := NewNotifyListener(StartFromID(a.Config.StartFromID), NotifyLogger(*listenerLog))
 
 	connConfig := pgx.ConnConfig{
 		Host:     a.Config.SourceDBHost,

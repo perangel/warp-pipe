@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/perangel/warp-pipe/internal/store"
@@ -29,6 +30,13 @@ func StartFromID(changesetID int64) NotifyOption {
 func StartFromTimestamp(t time.Time) NotifyOption {
 	return func(l *NotifyListener) {
 		l.startFromTimestamp = &t
+	}
+}
+
+// NotifyLogger is an option for setting the logger
+func NotifyLogger(logger *logrus.Logger) NotifyOption {
+	return func(l *NotifyListener) {
+		l.logger = logger.WithFields(logrus.Fields{"component": "listener"})
 	}
 }
 
@@ -53,7 +61,6 @@ type NotifyListener struct {
 // NewNotifyListener returns a new NotifyListener.
 func NewNotifyListener(opts ...NotifyOption) *NotifyListener {
 	l := &NotifyListener{
-		logger:        log.WithFields(log.Fields{"component": "listener"}),
 		changesetsCh:  make(chan *Changeset),
 		errCh:         make(chan error),
 		orderedEvents: make(map[int64]*store.Event),
@@ -61,6 +68,10 @@ func NewNotifyListener(opts ...NotifyOption) *NotifyListener {
 
 	for _, opt := range opts {
 		opt(l)
+	}
+
+	if l.logger == nil {
+		l.logger = logrus.WithFields(log.Fields{"component": "listener"})
 	}
 
 	return l
