@@ -125,8 +125,8 @@ func (a *Axon) Run() error {
 	}
 
 	// Create a notify listener and start from the configured changeset id.
-	listenerLog := a.Logger.WithFields(logrus.Fields{"component": "listener"})
-	listener := NewNotifyListener(StartFromID(a.Config.StartFromID), NotifyLogger(*listenerLog))
+	listener := NewNotifyListener(StartFromOffset(a.Config.StartFromOffset),
+		NotifyLogger(a.Logger))
 
 	connConfig := pgx.ConnConfig{
 		Host:     a.Config.SourceDBHost,
@@ -291,7 +291,7 @@ func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
 	return nil
 }
 
-func (a *Axon) VerifyChangesets(lastID int64) error {
+func (a *Axon) VerifyChangesets(targetCountID int64) error {
 	a.Logger.Info("beginning verbose check")
 	sourceDBConn, targetDBConn, err := a.getDB()
 	if err != nil {
@@ -300,10 +300,10 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 	defer sourceDBConn.Close()
 	defer targetDBConn.Close()
 
-	where := ""
-	if lastID > 0 {
-		where = fmt.Sprintf("WHERE id <= %d", lastID)
-		a.Logger.Infof("checking first changeset to changeset id: %d", lastID)
+	offset := ""
+	if targetCountID > 0 {
+		offset = fmt.Sprintf("OFFSET %d", targetCountID)
+		a.Logger.Infof("starting at changeset id offset: %d", targetCountID)
 	}
 
 	// Compare changeset records one by one
@@ -314,9 +314,9 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 	sql := fmt.Sprintf(`
 			SELECT
 				-- excludes the timestamp field
-				action, schema_name, table_name, new_values, old_values
-			FROM warp_pipe.changesets %s
-			ORDER BY id`, where)
+				id, action, schema_name, table_name, new_values, old_values
+			FROM warp_pipe.changesets
+			ORDER BY id %s`, offset)
 
 	sRows, err := sourceDBConn.Query(sql)
 	if err != nil {
@@ -330,9 +330,11 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 
 	countLog := 0
 	countDiff := 0
-	for sRows.Next() {
-		if !tRows.Next() {
-			return fmt.Errorf("target missing expected changeset records")
+	// Go through all target Rows
+	for tRows.Next() {
+		if !sRows.Next() {
+			// Source needs at least the number of rows as the Target.
+			return fmt.Errorf("source missing expected changeset records")
 		}
 
 		sEvent, err := scanRow(sRows)
@@ -348,10 +350,13 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 		countLog++
 		if countLog == 1000 {
 			// Log a message every 1000 changeset records
-			a.Logger.Infof("1000 changesets processed", tEvent.ID)
+			a.Logger.Infof("1000 changesets processed, last %d", tEvent.ID)
 			countLog = 0
 		}
 
+		// Ignore ID differences.
+		sEvent.ID = 0
+		tEvent.ID = 0
 		if !reflect.DeepEqual(sEvent, tEvent) {
 			a.Logger.Errorf("source/target rows differ, source: %+v target: %+v", sEvent, tEvent)
 			countDiff++
@@ -362,7 +367,6 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 		}
 	}
 
-	// TODO: Compare tables directly, requires DB maintenance mode enabled to avoid new data. Is needed?
 	diffFound := countDiff > 0
 	if diffFound {
 		a.Logger.Info("verbose check failed")
@@ -375,7 +379,7 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 func scanRow(rows *pgx.Rows) (*store.Event, error) {
 	var evt store.Event
 	err := rows.Scan(
-		//&evt.ID, Not Sequential :(
+		&evt.ID, // Warning: Not Sequential!
 		//&evt.Timestamp ignored
 		&evt.Action,
 		&evt.SchemaName,

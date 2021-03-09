@@ -19,10 +19,10 @@ import (
 // NotifyOption is a NotifyListener option function
 type NotifyOption func(*NotifyListener)
 
-// StartFromID is an option for setting the startFromID
-func StartFromID(changesetID int64) NotifyOption {
+// StartFromOffset is an option for setting the startFromOffset
+func StartFromOffset(offset int64) NotifyOption {
 	return func(l *NotifyListener) {
-		l.startFromID = &changesetID
+		l.startFromOffset = &offset
 	}
 }
 
@@ -47,7 +47,7 @@ type NotifyListener struct {
 	conn                   *pgx.Conn
 	logger                 *log.Entry
 	store                  store.EventStore
-	startFromID            *int64
+	startFromOffset        *int64
 	startFromTimestamp     *time.Time
 	lastProcessedTimestamp *time.Time
 	lastProcessedChangeset *Changeset
@@ -101,12 +101,12 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset,
 	}
 
 	go func() {
-		if l.startFromID != nil {
+		if l.startFromOffset != nil {
 			eventCh := make(chan *store.Event)
 			doneCh := make(chan bool)
 			errCh := make(chan error)
 
-			go l.store.GetSinceID(ctx, *l.startFromID, eventCh, doneCh, errCh)
+			go l.store.GetFromOffset(ctx, *l.startFromOffset, eventCh, doneCh, errCh)
 
 		processIDLoop:
 			for {

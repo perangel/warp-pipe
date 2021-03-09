@@ -39,8 +39,8 @@ type Config struct {
 	// Start replication from the specified logical sequence number. (LR mode only)
 	StartFromLSN uint64 `envconfig:"START_FROM_LSN"`
 
-	// Start replication from the specified changeset ID. (Audit mode only)
-	StartFromID int64 `envconfig:"START_FROM_ID"`
+	// Start replication after the changeset count offset. (Audit mode only)
+	StartFromOffset int64 `envconfig:"START_FROM_OFFSET"`
 
 	// Start replication from the specified changeset timestamp. (Audit mode only)
 	StartFromTimestamp int64 `envconfig:"START_FROM_TIMESTAMP"`
