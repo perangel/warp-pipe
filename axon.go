@@ -300,6 +300,7 @@ func (a *Axon) VerifyChangesets(targetCountID int64) error {
 	defer sourceDBConn.Close()
 	defer targetDBConn.Close()
 
+	// There may be many records in the source, skip them when possible.
 	offset := ""
 	if targetCountID > 0 {
 		offset = fmt.Sprintf("OFFSET %d", targetCountID)
@@ -307,9 +308,6 @@ func (a *Axon) VerifyChangesets(targetCountID int64) error {
 	}
 
 	// Compare changeset records one by one
-
-	// TODO: Confirm total changeset count
-	// TODO: Confirm changeset start and end IDs match
 
 	sql := fmt.Sprintf(`
 			SELECT
@@ -328,13 +326,15 @@ func (a *Axon) VerifyChangesets(targetCountID int64) error {
 		return fmt.Errorf("failed to get target changesets table rows: %w", err)
 	}
 
-	countLog := 0
+	start := true
 	countDiff := 0
-	// Go through all target Rows
+	countProcessed := 0
+	const logEvery = 1000
+	// Go through all target rows in target, but not necessarily source.
 	for tRows.Next() {
 		if !sRows.Next() {
 			// Source needs at least the number of rows as the Target.
-			return fmt.Errorf("source missing expected changeset records")
+			return fmt.Errorf("source missing expected changeset records, has less than target")
 		}
 
 		sEvent, err := scanRow(sRows)
@@ -347,32 +347,40 @@ func (a *Axon) VerifyChangesets(targetCountID int64) error {
 			return fmt.Errorf("failed to load target changeset row: %w", err)
 		}
 
-		countLog++
-		if countLog == 1000 {
-			// Log a message every 1000 changeset records
-			a.Logger.Infof("1000 changesets processed, last %d", tEvent.ID)
-			countLog = 0
+		if start {
+			start = false
+			a.Logger.Infof("first source record ID: %d", sEvent.ID)
+			a.Logger.Infof("first target record ID: %d", tEvent.ID)
+		}
+
+		countProcessed++
+		if countProcessed%logEvery == 0 { //nit: I don't like gofmt of this.
+			// Log a message once in a while to look busy.
+			a.Logger.Infof("changesets processed: %d last source ID: %d, last target ID: %d", logEvery, sEvent.ID, tEvent.ID)
 		}
 
 		// Ignore ID differences.
 		sEvent.ID = 0
 		tEvent.ID = 0
 		if !reflect.DeepEqual(sEvent, tEvent) {
-			a.Logger.Errorf("source/target rows differ, source: %+v target: %+v", sEvent, tEvent)
+			a.Logger.Errorf("source/target rows differ, source: %s target: %s", sEvent, tEvent)
 			countDiff++
 		}
+
 		if countDiff == 100 {
-			a.Logger.Errorf("100 different records found, stopping check")
+			a.Logger.Errorf("100 different records found, exiting early, we've seen enough")
 			break
 		}
 	}
+	a.Logger.Infof("processed record count: %d", countProcessed)
+	a.Logger.Infof("different record count: %d", countDiff)
 
 	diffFound := countDiff > 0
 	if diffFound {
-		a.Logger.Info("verbose check failed")
-		return fmt.Errorf("changeset records checksums differ")
+		a.Logger.Error("record by record check: failed")
+		return fmt.Errorf("changeset records differ")
 	}
-	a.Logger.Info("verbose check passed")
+	a.Logger.Info("record by record check: passed")
 	return nil
 }
 
