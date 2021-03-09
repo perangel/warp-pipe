@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
@@ -168,7 +169,7 @@ func (a *Axon) insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset
 
 	// NOTE: row insert/update/delete logs have been updated to be the same length
 	// to align timestamps to ease viewing.
-	a.Logger.Printf("row insert: %s", change)
+	a.Logger.WithField("time-delta", time.Now().Sub(change.Timestamp)).Printf("row insert: %s", change)
 	return nil
 }
 
@@ -188,7 +189,7 @@ func (a *Axon) updateRow(targetDB *sqlx.DB, change *Changeset, primaryKey []stri
 
 		return fmt.Errorf("PG error %s:%s failed to update %s for query %s args %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), args, err)
 	}
-	a.Logger.Printf("row update: %s", change)
+	a.Logger.WithField("time-delta", time.Now().Sub(change.Timestamp)).Printf("row update: %s", change)
 	return nil
 }
 
@@ -202,6 +203,6 @@ func (a *Axon) deleteRow(targetDB *sqlx.DB, change *Changeset, primaryKey []stri
 		}
 		return fmt.Errorf("PG error %s:%s delete to update %s for query %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), err)
 	}
-	a.Logger.Printf("row delete: %s", change)
+	a.Logger.WithField("time-delta", time.Now().Sub(change.Timestamp)).Printf("row delete: %s", change)
 	return nil
 }
