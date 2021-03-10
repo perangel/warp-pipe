@@ -82,18 +82,18 @@ func (a *Axon) Run() error {
 		return fmt.Errorf("unable to connect to target database: %w", err)
 	}
 
-	err = checkTargetVersion(targetDBConn)
+	err = a.checkTargetVersion(targetDBConn)
 	if err != nil {
 		return fmt.Errorf("unable to check target database version: %w", err)
 	}
 
 	// TODO: (1) add support for selecting the warp-pipe mode
 	// TODO: (2) only print the source stats if that is audit
-	sourceCount, err := printStats(sourceDBConn, "source")
+	sourceCount, err := a.printStats(sourceDBConn, "source")
 	if err != nil {
 		return fmt.Errorf("unable to get source db stats: %w", err)
 	}
-	targetCount, err := printStats(targetDBConn, "target")
+	targetCount, err := a.printStats(targetDBConn, "target")
 	if err != nil {
 		return fmt.Errorf("unable to get target db stats: %w", err)
 	}
@@ -103,17 +103,17 @@ func (a *Axon) Run() error {
 		return nil
 	}
 
-	err = loadPrimaryKeys(targetDBConn)
+	err = a.loadPrimaryKeys(targetDBConn)
 	if err != nil {
 		return fmt.Errorf("unable to load target DB primary keys: %w", err)
 	}
 
-	err = loadColumnSequences(targetDBConn)
+	err = a.loadColumnSequences(targetDBConn)
 	if err != nil {
 		return fmt.Errorf("unable to load target DB column sequences: %w", err)
 	}
 
-	err = loadOrphanSequences(sourceDBConn)
+	err = a.loadOrphanSequences(sourceDBConn)
 	if err != nil {
 		return fmt.Errorf("unable to load source DB orphan sequences: %w", err)
 	}
@@ -125,7 +125,8 @@ func (a *Axon) Run() error {
 	}
 
 	// Create a notify listener and start from the configured changeset id.
-	listener := NewNotifyListener(StartFromID(a.Config.StartFromID))
+	listener := NewNotifyListener(StartFromOffset(a.Config.StartFromOffset),
+		NotifyLogger(a.Logger))
 
 	connConfig := pgx.ConnConfig{
 		Host:     a.Config.SourceDBHost,
@@ -290,7 +291,7 @@ func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
 	return nil
 }
 
-func (a *Axon) VerifyChangesets(lastID int64) error {
+func (a *Axon) VerifyChangesets(targetCountID int64) error {
 	a.Logger.Info("beginning verbose check")
 	sourceDBConn, targetDBConn, err := a.getDB()
 	if err != nil {
@@ -299,23 +300,21 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 	defer sourceDBConn.Close()
 	defer targetDBConn.Close()
 
-	where := ""
-	if lastID > 0 {
-		where = fmt.Sprintf("WHERE id <= %d", lastID)
-		a.Logger.Infof("checking first changeset to changeset id: %d", lastID)
+	// There may be many records in the source, skip them when possible.
+	offset := ""
+	if targetCountID > 0 {
+		offset = fmt.Sprintf("OFFSET %d", targetCountID)
+		a.Logger.Infof("starting at changeset id offset: %d", targetCountID)
 	}
 
 	// Compare changeset records one by one
-
-	// TODO: Confirm total changeset count
-	// TODO: Confirm changeset start and end IDs match
 
 	sql := fmt.Sprintf(`
 			SELECT
 				-- excludes the timestamp field
 				id, action, schema_name, table_name, new_values, old_values
-			FROM warp_pipe.changesets %s
-			ORDER BY id`, where)
+			FROM warp_pipe.changesets
+			ORDER BY id %s`, offset)
 
 	sRows, err := sourceDBConn.Query(sql)
 	if err != nil {
@@ -327,11 +326,15 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 		return fmt.Errorf("failed to get target changesets table rows: %w", err)
 	}
 
-	countLog := 0
+	start := true
 	countDiff := 0
-	for sRows.Next() {
-		if !tRows.Next() {
-			return fmt.Errorf("target missing expected changeset records")
+	countProcessed := 0
+	const logEvery = 1000
+	// Go through all target rows in target, but not necessarily source.
+	for tRows.Next() {
+		if !sRows.Next() {
+			// Source needs at least the number of rows as the Target.
+			return fmt.Errorf("source missing expected changeset records, has less than target")
 		}
 
 		sEvent, err := scanRow(sRows)
@@ -344,37 +347,47 @@ func (a *Axon) VerifyChangesets(lastID int64) error {
 			return fmt.Errorf("failed to load target changeset row: %w", err)
 		}
 
-		countLog++
-		if countLog == 1000 {
-			// Log a message every 1000 changeset records
-			a.Logger.Infof("processing changeset id: %d", tEvent.ID)
-			countLog = 0
+		if start {
+			start = false
+			a.Logger.Infof("first source record ID: %d", sEvent.ID)
+			a.Logger.Infof("first target record ID: %d", tEvent.ID)
 		}
 
+		countProcessed++
+		if countProcessed%logEvery == 0 { //nit: I don't like gofmt of this.
+			// Log a message once in a while to look busy.
+			a.Logger.Infof("changesets processed: %d last source ID: %d, last target ID: %d", logEvery, sEvent.ID, tEvent.ID)
+		}
+
+		// Ignore ID differences.
+		sEvent.ID = 0
+		tEvent.ID = 0
 		if !reflect.DeepEqual(sEvent, tEvent) {
-			a.Logger.Errorf("source/target rows differ, source: %+v target: %+v", sEvent, tEvent)
+			a.Logger.Errorf("source/target rows differ, source: %s target: %s", sEvent, tEvent)
 			countDiff++
 		}
+
 		if countDiff == 100 {
-			a.Logger.Errorf("100 different records found, stopping check")
+			a.Logger.Errorf("100 different records found, exiting early, we've seen enough")
 			break
 		}
 	}
+	a.Logger.Infof("processed record count: %d", countProcessed)
+	a.Logger.Infof("different record count: %d", countDiff)
 
-	// TODO: Compare tables directly, requires DB maintenance mode enabled to avoid new data. Is needed?
 	diffFound := countDiff > 0
 	if diffFound {
-		a.Logger.Info("verbose check failed")
-		return fmt.Errorf("changeset records checksums differ")
+		a.Logger.Error("record by record check: failed")
+		return fmt.Errorf("changeset records differ")
 	}
-	a.Logger.Info("verbose check passed")
+	a.Logger.Info("record by record check: passed")
 	return nil
 }
 
 func scanRow(rows *pgx.Rows) (*store.Event, error) {
 	var evt store.Event
 	err := rows.Scan(
-		&evt.ID,
+		&evt.ID, // Warning: Not Sequential!
 		//&evt.Timestamp ignored
 		&evt.Action,
 		&evt.SchemaName,
@@ -408,14 +421,14 @@ func (a *Axon) processChange(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Chang
 }
 
 func (a *Axon) processDelete(targetDB *sqlx.DB, change *Changeset) error {
-	pk, err := getPrimaryKeyForChange(change)
+	pk, err := a.getPrimaryKeyForChange(change)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("unable to process DELETE for table '%s', changeset has no primary key", change.Table)
 		return err
 	}
 
-	err = deleteRow(targetDB, change, pk)
+	err = a.deleteRow(targetDB, change, pk)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("failed to DELETE row for table '%s' (pk: %s)", change.Table, pk)
@@ -426,7 +439,7 @@ func (a *Axon) processDelete(targetDB *sqlx.DB, change *Changeset) error {
 }
 
 func (a *Axon) processInsert(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset) error {
-	err := insertRow(sourceDB, targetDB, change, a.Config.FailOnDuplicate)
+	err := a.insertRow(sourceDB, targetDB, change, a.Config.FailOnDuplicate)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("failed to INSERT row for table '%s'", change.Table)
@@ -437,14 +450,14 @@ func (a *Axon) processInsert(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Chang
 }
 
 func (a *Axon) processUpdate(targetDB *sqlx.DB, change *Changeset) error {
-	pk, err := getPrimaryKeyForChange(change)
+	pk, err := a.getPrimaryKeyForChange(change)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("unable to process UPDATE for table '%s', changeset has no primary key", change.Table)
 		return err
 	}
 
-	err = updateRow(targetDB, change, pk)
+	err = a.updateRow(targetDB, change, pk)
 	if err != nil {
 		a.Logger.WithError(err).WithField("table", change.Table).
 			Errorf("failed to UPDATE row for table '%s' (pk: %s)", change.Table, pk)

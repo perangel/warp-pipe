@@ -43,7 +43,7 @@ func (e *Event) String() string {
 // EventStore is the interface for providing access to events storage.
 type EventStore interface {
 	GetByID(ctx context.Context, eventID int64) (*Event, error)
-	GetSinceID(ctx context.Context, eventID int64, eventCh chan *Event, doneCh chan bool, errCh chan error)
+	GetFromOffset(ctx context.Context, offset int64, eventCh chan *Event, doneCh chan bool, errCh chan error)
 	GetSinceTimestamp(ctx context.Context, since time.Time, eventCh chan *Event, doneCh chan bool, errCh chan error)
 	DeleteBeforeID(ctx context.Context, eventID int64) error
 	DeleteBeforeTimestamp(ctx context.Context, since time.Time) error
@@ -121,8 +121,8 @@ func (s *ChangesetStore) GetByID(ctx context.Context, eventID int64) (*Event, er
 	return s.get(eventID)
 }
 
-// GetSinceID returns all events after a given ID.
-func (s *ChangesetStore) GetSinceID(ctx context.Context, eventID int64, eventCh chan *Event, doneCh chan bool, errCh chan error) {
+// GetFromOffset returns all events starting from a specific offset
+func (s *ChangesetStore) GetFromOffset(ctx context.Context, offset int64, eventCh chan *Event, doneCh chan bool, errCh chan error) {
 	sql := `
 		SELECT
 			id,
@@ -134,14 +134,12 @@ func (s *ChangesetStore) GetSinceID(ctx context.Context, eventID int64, eventCh 
 			new_values,
 			old_values
 		FROM warp_pipe.changesets
-			WHERE id >= $1
 			ORDER BY id
 			LIMIT %d
-			OFFSET %d`
+			OFFSET $1`
 
-	offset := 0
 	for {
-		evts, err := s.query(fmt.Sprintf(sql, paginationDefaultLimit, offset), eventID)
+		evts, err := s.query(fmt.Sprintf(sql, paginationDefaultLimit), offset)
 		if err != nil {
 			errCh <- err
 			return
@@ -156,7 +154,7 @@ func (s *ChangesetStore) GetSinceID(ctx context.Context, eventID int64, eventCh 
 			return
 		}
 
-		offset += len(evts)
+		offset += int64(len(evts))
 	}
 }
 

@@ -2,10 +2,10 @@ package warppipe
 
 import (
 	"fmt"
-	"log"
 	"reflect"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
@@ -17,7 +17,7 @@ func removeDuplicateSpaces(in string) string {
 	return strings.TrimSpace(regexSpace.ReplaceAllString(in, " "))
 }
 
-func prepareQueryArgs(changesetCols []*ChangesetColumn) ([]string, []string, map[string]interface{}, error) {
+func (a *Axon) prepareQueryArgs(changesetCols []*ChangesetColumn) ([]string, []string, map[string]interface{}, error) {
 	var cols []string
 	var colArgs []string
 	values := make(map[string]interface{}, len(cols))
@@ -56,7 +56,7 @@ func prepareQueryArgs(changesetCols []*ChangesetColumn) ([]string, []string, map
 	return cols, colArgs, values, nil
 }
 
-func preparePrimaryKeyWhereClause(table string, primaryKey []string) string {
+func (a *Axon) preparePrimaryKeyWhereClause(table string, primaryKey []string) string {
 	clauses := make([]string, len(primaryKey))
 	for i, c := range primaryKey {
 		clauses[i] = fmt.Sprintf(`"%s".%s = :%s`, table, c, c)
@@ -65,11 +65,11 @@ func preparePrimaryKeyWhereClause(table string, primaryKey []string) string {
 	return strings.Join(clauses, " AND ")
 }
 
-func prepareInsertQuery(change *Changeset) (string, map[string]interface{}) {
-	cols, colArgs, values, err := prepareQueryArgs(change.NewValues)
+func (a *Axon) prepareInsertQuery(change *Changeset) (string, map[string]interface{}) {
+	cols, colArgs, values, err := a.prepareQueryArgs(change.NewValues)
 	if err != nil {
 		// TODO: Is failure the best option here? Probably no way to safely save anything.
-		log.Fatalf("prepareQueryArgs: error in changeset %s: %s", change, err)
+		a.Logger.Fatalf("prepareQueryArgs: error in changeset %s: %s", change, err)
 	}
 
 	sql := fmt.Sprintf(
@@ -83,10 +83,10 @@ func prepareInsertQuery(change *Changeset) (string, map[string]interface{}) {
 	return sql, values
 }
 
-func prepareUpdateQuery(primaryKey []string, change *Changeset) (string, map[string]interface{}) {
-	cols, colArgs, values, err := prepareQueryArgs(change.NewValues)
+func (a *Axon) prepareUpdateQuery(primaryKey []string, change *Changeset) (string, map[string]interface{}) {
+	cols, colArgs, values, err := a.prepareQueryArgs(change.NewValues)
 	if err != nil {
-		log.Fatalf("prepareQueryArgs: error in changeset %s: %s", change, err)
+		a.Logger.Fatalf("prepareQueryArgs: error in changeset %s: %s", change, err)
 	}
 	setClauses := make([]string, len(cols))
 	for i, c := range cols {
@@ -108,30 +108,30 @@ func prepareUpdateQuery(primaryKey []string, change *Changeset) (string, map[str
 		strings.Join(colArgs, ", "),
 		strings.Join(primaryKey, ", "),
 		strings.Join(setClauses, ", "),
-		preparePrimaryKeyWhereClause(change.Table, primaryKey),
+		a.preparePrimaryKeyWhereClause(change.Table, primaryKey),
 	)
 
 	return sql, values
 }
 
-func prepareDeleteQuery(primaryKey []string, change *Changeset) (string, map[string]interface{}) {
-	_, _, values, err := prepareQueryArgs(change.OldValues)
+func (a *Axon) prepareDeleteQuery(primaryKey []string, change *Changeset) (string, map[string]interface{}) {
+	_, _, values, err := a.prepareQueryArgs(change.OldValues)
 	if err != nil {
-		log.Fatalf("prepareQueryArgs: error in changeset %s: %s", change, err)
+		a.Logger.Fatalf("prepareQueryArgs: error in changeset %s: %s", change, err)
 	}
 
 	sql := fmt.Sprintf(
 		`DELETE FROM "%s"."%s" WHERE %s`,
 		change.Schema,
 		change.Table,
-		preparePrimaryKeyWhereClause(change.Table, primaryKey),
+		a.preparePrimaryKeyWhereClause(change.Table, primaryKey),
 	)
 
 	return sql, values
 }
 
-func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset, failOnDuplicate bool) error {
-	query, args := prepareInsertQuery(change)
+func (a *Axon) insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset, failOnDuplicate bool) error {
+	query, args := a.prepareInsertQuery(change)
 	_, err := targetDB.NamedExec(query, args)
 	if err != nil {
 		// PG error codes: https://www.postgresql.org/docs/9.2/errcodes-appendix.html
@@ -145,9 +145,9 @@ func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset, failOnDu
 				return fmt.Errorf("duplicate row insert failed %s", change)
 			}
 
-			log.Printf("duplicate row insert skipped %s", change)
+			a.Logger.Printf("duplicate row insert skipped %s", change)
 			// Always update, even on duplicate row.
-			err = updateColumnSequence(targetDB, change.Table, change.NewValues)
+			err = a.updateColumnSequence(targetDB, change.Table, change.NewValues)
 			if err != nil {
 				return err
 			}
@@ -157,24 +157,24 @@ func insertRow(sourceDB *sqlx.DB, targetDB *sqlx.DB, change *Changeset, failOnDu
 		return fmt.Errorf("PG error %s:%s failed to insert %s for query %s args %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), args, err)
 	}
 
-	err = updateColumnSequence(targetDB, change.Table, change.NewValues)
+	err = a.updateColumnSequence(targetDB, change.Table, change.NewValues)
 	if err != nil {
 		return err
 	}
 
-	err = updateOrphanSequences(sourceDB, targetDB, change.Table, change.NewValues)
+	err = a.updateOrphanSequences(sourceDB, targetDB, change.Table, change.NewValues)
 	if err != nil {
 		return err
 	}
 
 	// NOTE: row insert/update/delete logs have been updated to be the same length
 	// to align timestamps to ease viewing.
-	log.Printf("row insert: %s", change)
+	a.Logger.WithField("time-delta", time.Now().Sub(change.Timestamp)).Printf("row insert: %s", change)
 	return nil
 }
 
-func updateRow(targetDB *sqlx.DB, change *Changeset, primaryKey []string) error {
-	query, args := prepareUpdateQuery(primaryKey, change)
+func (a *Axon) updateRow(targetDB *sqlx.DB, change *Changeset, primaryKey []string) error {
+	query, args := a.prepareUpdateQuery(primaryKey, change)
 	_, err := targetDB.NamedExec(query, args)
 	if err != nil {
 		pqe, ok := err.(*pq.Error)
@@ -183,18 +183,18 @@ func updateRow(targetDB *sqlx.DB, change *Changeset, primaryKey []string) error 
 		}
 		if pqe.Code.Name() == "unique_violation" {
 			// Ignore duplicates
-			log.Print("update duplicate row skipped")
+			a.Logger.Print("update duplicate row skipped")
 			return nil
 		}
 
 		return fmt.Errorf("PG error %s:%s failed to update %s for query %s args %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), args, err)
 	}
-	log.Printf("row update: %s", change)
+	a.Logger.WithField("time-delta", time.Now().Sub(change.Timestamp)).Printf("row update: %s", change)
 	return nil
 }
 
-func deleteRow(targetDB *sqlx.DB, change *Changeset, primaryKey []string) error {
-	query, values := prepareDeleteQuery(primaryKey, change)
+func (a *Axon) deleteRow(targetDB *sqlx.DB, change *Changeset, primaryKey []string) error {
+	query, values := a.prepareDeleteQuery(primaryKey, change)
 	_, err := targetDB.NamedExec(query, values)
 	if err != nil {
 		pqe, ok := err.(*pq.Error)
@@ -203,6 +203,6 @@ func deleteRow(targetDB *sqlx.DB, change *Changeset, primaryKey []string) error 
 		}
 		return fmt.Errorf("PG error %s:%s delete to update %s for query %s: %+v", pqe.Code, pqe.Code.Name(), change, removeDuplicateSpaces(query), err)
 	}
-	log.Printf("row delete: %s", change)
+	a.Logger.WithField("time-delta", time.Now().Sub(change.Timestamp)).Printf("row delete: %s", change)
 	return nil
 }

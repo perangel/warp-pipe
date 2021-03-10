@@ -46,7 +46,7 @@ func parseConfig() (*warppipe.Config, error) {
 	}
 
 	config.StartFromLSN = uint64(startFromLSN)
-	config.StartFromID = startFromID
+	config.StartFromOffset = startFromOffset
 	config.StartFromTimestamp = startFromTimestamp
 
 	if logLevel != "" {
@@ -69,8 +69,8 @@ func initListener(config *warppipe.Config) (warppipe.Listener, error) {
 	case replicationModeAudit:
 		var opts []warppipe.NotifyOption
 
-		if config.StartFromID != -1 {
-			opts = append(opts, warppipe.StartFromID(config.StartFromID))
+		if config.StartFromOffset != -1 {
+			opts = append(opts, warppipe.StartFromOffset(config.StartFromOffset))
 		} else if config.StartFromTimestamp != -1 {
 			t := time.Unix(config.StartFromTimestamp, 0)
 			opts = append(opts, warppipe.StartFromTimestamp(t))

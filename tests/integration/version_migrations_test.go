@@ -361,14 +361,14 @@ func TestVersionMigration(t *testing.T) {
 			}
 			insertsWG.Wait()
 
-			t.Log("second pass sync. starting from last ID in target, catching any stragglers")
-			row, err := targetConn.Query("SELECT max(id) from warp_pipe.changesets")
+			t.Log("second pass sync. starting from count of Changesets in target, catching any stragglers")
+			row, err := targetConn.Query("SELECT count(id) from warp_pipe.changesets")
 			require.True(t, row.Next())
 			var count int64
 			row.Scan(&count)
-			t.Logf("last target changeset id: %d", count)
+			t.Logf("count of changesets in target: %d", count)
 
-			axon.Config.StartFromID = count + 1
+			axon.Config.StartFromOffset = count
 
 			err = axon.Run()
 			require.NoError(t, err)

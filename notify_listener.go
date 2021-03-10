@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/perangel/warp-pipe/internal/store"
@@ -18,10 +19,10 @@ import (
 // NotifyOption is a NotifyListener option function
 type NotifyOption func(*NotifyListener)
 
-// StartFromID is an option for setting the startFromID
-func StartFromID(changesetID int64) NotifyOption {
+// StartFromOffset is an option for setting the startFromOffset
+func StartFromOffset(offset int64) NotifyOption {
 	return func(l *NotifyListener) {
-		l.startFromID = &changesetID
+		l.startFromOffset = &offset
 	}
 }
 
@@ -32,6 +33,13 @@ func StartFromTimestamp(t time.Time) NotifyOption {
 	}
 }
 
+// NotifyLogger is an option for setting the logger
+func NotifyLogger(logger *logrus.Logger) NotifyOption {
+	return func(l *NotifyListener) {
+		l.logger = logger.WithFields(logrus.Fields{"component": "listener"})
+	}
+}
+
 // NotifyListener is a listener that uses Postgres' LISTEN/NOTIFY pattern for
 // subscribing for subscribing to changeset enqueued in a changesets table.
 // For more details see `pkg/schema/changesets`.
@@ -39,7 +47,7 @@ type NotifyListener struct {
 	conn                   *pgx.Conn
 	logger                 *log.Entry
 	store                  store.EventStore
-	startFromID            *int64
+	startFromOffset        *int64
 	startFromTimestamp     *time.Time
 	lastProcessedTimestamp *time.Time
 	lastProcessedChangeset *Changeset
@@ -47,12 +55,12 @@ type NotifyListener struct {
 	errCh                  chan error
 	listenerLock           sync.Mutex
 	orderedEvents          map[int64]*store.Event
+	countOutOfOrder        int
 }
 
 // NewNotifyListener returns a new NotifyListener.
 func NewNotifyListener(opts ...NotifyOption) *NotifyListener {
 	l := &NotifyListener{
-		logger:        log.WithFields(log.Fields{"component": "listener"}),
 		changesetsCh:  make(chan *Changeset),
 		errCh:         make(chan error),
 		orderedEvents: make(map[int64]*store.Event),
@@ -60,6 +68,10 @@ func NewNotifyListener(opts ...NotifyOption) *NotifyListener {
 
 	for _, opt := range opts {
 		opt(l)
+	}
+
+	if l.logger == nil {
+		l.logger = logrus.WithFields(log.Fields{"component": "listener"})
 	}
 
 	return l
@@ -89,12 +101,12 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset,
 	}
 
 	go func() {
-		if l.startFromID != nil {
+		if l.startFromOffset != nil {
 			eventCh := make(chan *store.Event)
 			doneCh := make(chan bool)
 			errCh := make(chan error)
 
-			go l.store.GetSinceID(ctx, *l.startFromID, eventCh, doneCh, errCh)
+			go l.store.GetFromOffset(ctx, *l.startFromOffset, eventCh, doneCh, errCh)
 
 		processIDLoop:
 			for {
@@ -203,12 +215,19 @@ func (l *NotifyListener) handleChangeset(event *store.Event) {
 
 	if nextChangesetID == event.ID {
 		l.processChangeset(event)
+		l.countOutOfOrder = 0 //reset the count
 		return
 	}
 
 	// Current record is NOT next, store it.
 	l.logger.Infof("Storing OUT-OF-ORDER unprocessed record id: %d", event.ID)
+	l.countOutOfOrder++
 	l.orderedEvents[event.ID] = event
+
+	if l.countOutOfOrder > 100 {
+		l.logger.Infof("Out of order count reached 100+, assuming changeset ID gap, seeking record id: %d", nextChangesetID)
+		nextChangesetID++
+	}
 
 	for {
 		nextEvent, ok := l.orderedEvents[nextChangesetID]
@@ -219,6 +238,7 @@ func (l *NotifyListener) handleChangeset(event *store.Event) {
 		l.logger.Infof("Found next unprocessed record id: %d", event.ID)
 
 		l.processChangeset(nextEvent)
+		l.countOutOfOrder = 0 //reset the count
 		nextChangesetID = l.lastProcessedChangeset.ID + 1
 	}
 }

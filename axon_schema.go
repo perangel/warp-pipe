@@ -2,7 +2,7 @@ package warppipe
 
 import (
 	"fmt"
-	"log"
+
 	"strconv"
 	"strings"
 
@@ -22,7 +22,7 @@ var orphanSequences []string
 // for each table, maps column names to their postgres data types
 var columnTypes = (map[string]map[string]string{})
 
-func checkTargetVersion(conn *sqlx.DB) error {
+func (a *Axon) checkTargetVersion(conn *sqlx.DB) error {
 	var serverVersion string
 	err := conn.Get(&serverVersion, "SHOW server_version;")
 	if err != nil {
@@ -48,21 +48,21 @@ func checkTargetVersion(conn *sqlx.DB) error {
 		// handle the conflict as our cue to update.
 		return fmt.Errorf("Target DB Unsupported Version: %s", serverVersion)
 	}
-	log.Printf("Target DB Version: %s", serverVersion)
+	a.Logger.Printf("Target DB Version: %s", serverVersion)
 	return nil
 }
 
-func printStats(conn *sqlx.DB, name string) (int, error) {
+func (a *Axon) printStats(conn *sqlx.DB, name string) (int, error) {
 	var changesetCount int
 	err := conn.Get(&changesetCount, "SELECT count(id) FROM warp_pipe.changesets")
 	if err != nil {
 		return 0, err
 	}
-	log.Printf("Changesets found in %s: %d", name, changesetCount)
+	a.Logger.Printf("Changesets found in %s: %d", name, changesetCount)
 	return changesetCount, nil
 }
 
-func loadPrimaryKeys(conn *sqlx.DB) error {
+func (a *Axon) loadPrimaryKeys(conn *sqlx.DB) error {
 	var rows []struct {
 		TableName  string         `db:"table_name"`
 		PrimaryKey pq.StringArray `db:"primary_key"`
@@ -89,7 +89,7 @@ func loadPrimaryKeys(conn *sqlx.DB) error {
 	return nil
 }
 
-func getPrimaryKeyForChange(change *Changeset) ([]string, error) {
+func (a *Axon) getPrimaryKeyForChange(change *Changeset) ([]string, error) {
 	col, ok := primaryKeys[change.Table]
 	if !ok {
 		return nil, fmt.Errorf("no primary key in mapping for table `%s`", change.Table)
@@ -99,7 +99,7 @@ func getPrimaryKeyForChange(change *Changeset) ([]string, error) {
 
 // loadColumnSequences loads sequences used explictly in a table column which
 // need to be updated after INSERTs.
-func loadColumnSequences(conn *sqlx.DB) error {
+func (a *Axon) loadColumnSequences(conn *sqlx.DB) error {
 	var rows []struct {
 		TableName     string `db:"table_name"`
 		ColumnName    string `db:"column_name"`
@@ -126,24 +126,24 @@ func loadColumnSequences(conn *sqlx.DB) error {
 
 		sequenceColumns[r.TableName+"/"+r.ColumnName] = sequenceName
 	}
-	log.Printf("sequence columns found: %v", sequenceColumns)
+	a.Logger.Printf("sequence columns found: %v", sequenceColumns)
 	return nil
 }
 
-func getSequenceColumns(table, column string) (string, bool) {
+func (a *Axon) getSequenceColumns(table, column string) (string, bool) {
 	if sequenceName, ok := sequenceColumns[table+"/"+column]; ok {
 		return sequenceName, true
 	}
 	return "", false
 }
 
-func updateColumnSequence(conn *sqlx.DB, table string, columns []*ChangesetColumn) error {
+func (a *Axon) updateColumnSequence(conn *sqlx.DB, table string, columns []*ChangesetColumn) error {
 	// Why no transaction? From the manual: Because sequences are
 	// non-transactional, changes made by setval are not undone if the transaction
 	// rolls back.
 	// https://www.postgresql.org/docs/9.6/functions-sequence.html
 	for _, c := range columns {
-		sequenceName, ok := getSequenceColumns(table, c.Column)
+		sequenceName, ok := a.getSequenceColumns(table, c.Column)
 		if !ok {
 			// Column does not have a SERIAL sequence
 			continue
@@ -160,7 +160,7 @@ func updateColumnSequence(conn *sqlx.DB, table string, columns []*ChangesetColum
 		if err != nil {
 			return fmt.Errorf("updateSerialColumns: %w", err)
 		}
-		log.Printf("sequence set %s: %s", sequenceName, setVal)
+		a.Logger.Printf("sequence set %s: %s", sequenceName, setVal)
 	}
 	return nil
 }
@@ -169,7 +169,7 @@ func updateColumnSequence(conn *sqlx.DB, table string, columns []*ChangesetColum
 // with a table column so they can be automatically updated each INSERT. There
 // is no way to watch sequence value updates, so all must be updated each
 // insert.
-func loadOrphanSequences(conn *sqlx.DB) error {
+func (a *Axon) loadOrphanSequences(conn *sqlx.DB) error {
 	var rows []struct {
 		SequenceName string `db:"sequence_name"`
 	}
@@ -193,11 +193,11 @@ func loadOrphanSequences(conn *sqlx.DB) error {
 			orphanSequences = append(orphanSequences, r.SequenceName)
 		}
 	}
-	log.Printf("orphaned sequences found: %v", orphanSequences)
+	a.Logger.Printf("orphaned sequences found: %v", orphanSequences)
 	return nil
 }
 
-func updateOrphanSequences(sourceDB *sqlx.DB, targetDB *sqlx.DB, table string, columns []*ChangesetColumn) error {
+func (a *Axon) updateOrphanSequences(sourceDB *sqlx.DB, targetDB *sqlx.DB, table string, columns []*ChangesetColumn) error {
 	for _, sequenceName := range orphanSequences {
 		var lastVal int64 // PG bigint is 8 bytes
 
@@ -218,7 +218,7 @@ func updateOrphanSequences(sourceDB *sqlx.DB, targetDB *sqlx.DB, table string, c
 		if err != nil {
 			return fmt.Errorf("updateOrphanSequences: error setting value for %s: %w", sequenceName, err)
 		}
-		log.Printf("orphan sequence set %s: %v", sequenceName, setVal)
+		a.Logger.Printf("orphan sequence set %s: %v", sequenceName, setVal)
 	}
 	return nil
 }
