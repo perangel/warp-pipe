@@ -94,10 +94,15 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset,
 	l.logger.Info("Starting notify listener for `warp_pipe_new_changeset`")
 	l.store = store.NewChangesetStore(l.conn)
 
-	// NOTE: We start the listener here, which will begin buffering any notifications
-	err := l.conn.Listen("warp_pipe_new_changeset")
+	err := loadColumnTypesPGX(l.conn)
 	if err != nil {
-		l.logger.WithError(err).Fatal("failed to listen on notify channel")
+		l.errCh <- fmt.Errorf("failed to load the column types: %w", err)
+	}
+
+	// NOTE: We start the listener here, which will begin buffering any notifications
+	err = l.conn.Listen("warp_pipe_new_changeset")
+	if err != nil {
+		l.errCh <- fmt.Errorf("failed to listen on notify channel: %w", err)
 	}
 
 	go func() {
@@ -253,6 +258,9 @@ func (l *NotifyListener) processChangeset(event *store.Event) {
 		Table:     event.TableName,
 		Timestamp: event.Timestamp,
 	}
+
+	table := fmt.Sprintf(`"%s"."%s"`, event.SchemaName, event.TableName)
+
 	if event.NewValues != nil {
 		var newValues map[string]interface{}
 		err := json.Unmarshal(event.NewValues, &newValues)
@@ -267,17 +275,10 @@ func (l *NotifyListener) processChangeset(event *store.Event) {
 		}
 
 		for k, v := range newValues {
-			// Maps are not supported. They can break checksum validation
-			// when re-marshaling. Pass the original JSON string instead.
-			switch v.(type) {
-			case map[string]interface{}:
-				v = string(newRawValues[k])
-			}
-
-			col := &ChangesetColumn{
-				Column: k,
-				Value:  v,
-			}
+			column := k
+			value := v
+			rawValue := newRawValues[k]
+			col := changesetColumn(table, column, value, rawValue)
 			cs.NewValues = append(cs.NewValues, col)
 		}
 	}
@@ -296,17 +297,10 @@ func (l *NotifyListener) processChangeset(event *store.Event) {
 		}
 
 		for k, v := range oldValues {
-			// Maps are not supported. They can break checksum validation
-			// when re-marshaling. Pass the original JSON string instead.
-			switch v.(type) {
-			case map[string]interface{}:
-				v = string(oldRawValues[k])
-			}
-
-			col := &ChangesetColumn{
-				Column: k,
-				Value:  v,
-			}
+			column := k
+			value := v
+			rawValue := oldRawValues[k]
+			col := changesetColumn(table, column, value, rawValue)
 			cs.OldValues = append(cs.OldValues, col)
 		}
 	}
@@ -314,6 +308,24 @@ func (l *NotifyListener) processChangeset(event *store.Event) {
 	l.lastProcessedTimestamp = &event.Timestamp
 	l.lastProcessedChangeset = cs
 	l.changesetsCh <- cs
+}
+
+func changesetColumn(table, column string, value interface{}, rawValue json.RawMessage) *ChangesetColumn {
+	columnType, ok := columnTypes[table][column]
+	if !ok {
+		panic("column type could not be determined")
+	}
+
+	if columnType == "jsonb" || columnType == "json" {
+		if value != nil {
+			value = rawValue
+		}
+	}
+
+	return &ChangesetColumn{
+		Column: column,
+		Value:  value,
+	}
 }
 
 // Close closes the database connection.

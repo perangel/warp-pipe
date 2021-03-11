@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jackc/pgx"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 )
@@ -249,6 +250,39 @@ func loadColumnTypes(conn *sqlx.DB) error {
 		}
 
 		columnTypes[tableName][r.ColumnName] = r.DataType
+	}
+
+	return nil
+}
+
+// loadColumnTypesPGX loads the data types for all the columns in the database using a pgx connection.
+func loadColumnTypesPGX(conn *pgx.Conn) error {
+	rows, err := conn.Query(`
+		SELECT table_schema, table_name, column_name, data_type
+		FROM information_schema.columns
+		WHERE table_schema NOT IN ('pg_catalog', 'information_schema', 'warp_pipe');`)
+	if err != nil {
+		return fmt.Errorf("could not execute query to fetch column data types: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		schemaName := ""
+		tableName := ""
+		columnName := ""
+		dataType := ""
+
+		err := rows.Scan(&schemaName, &tableName, &columnName, &dataType)
+		if err != nil {
+			return fmt.Errorf("failed to scan the column type information: %w", err)
+		}
+
+		fullTableName := fmt.Sprintf(`"%s"."%s"`, schemaName, tableName)
+		if _, ok := columnTypes[fullTableName]; !ok {
+			columnTypes[fullTableName] = make(map[string]string)
+		}
+
+		columnTypes[fullTableName][columnName] = dataType
 	}
 
 	return nil

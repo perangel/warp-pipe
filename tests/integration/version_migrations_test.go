@@ -171,6 +171,11 @@ func testRows() []testData {
 			array:   []int32{1, 2, 3, 4, 5},
 			bytea:   []byte(`abcdef`),
 		},
+		// JSON string
+		{
+			json:  []byte(`"{\"name\": \"Alice\", \"age\": 31, \"city\": \"LA\"}"`),
+			jsonb: []byte(`"{\"name\": \"Bob\", \"age\": 39, \"city\": \"London\"}"`),
+		},
 	}
 }
 
