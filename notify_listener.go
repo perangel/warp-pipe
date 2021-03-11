@@ -96,13 +96,13 @@ func (l *NotifyListener) ListenForChanges(ctx context.Context) (chan *Changeset,
 
 	err := loadColumnTypesPGX(l.conn)
 	if err != nil {
-		l.logger.WithError(err).Fatal("failed to load the column types")
+		l.errCh <- fmt.Errorf("failed to load the column types: %w", err)
 	}
 
 	// NOTE: We start the listener here, which will begin buffering any notifications
 	err = l.conn.Listen("warp_pipe_new_changeset")
 	if err != nil {
-		l.logger.WithError(err).Fatal("failed to listen on notify channel")
+		l.errCh <- fmt.Errorf("failed to listen on notify channel: %w", err)
 	}
 
 	go func() {
