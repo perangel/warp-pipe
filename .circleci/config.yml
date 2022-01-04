@@ -1,0 +1,31 @@
+version: 2.1
+
+executors:
+  go:
+    docker:
+      - image: cimg/go:1.15
+
+commands:
+  docker_setup:
+    steps:
+      - setup_remote_docker:
+          version: 17.09.0-ce
+  test:
+    steps:
+      - run:
+          name: Test the application
+          command: make integration-test
+
+jobs:
+  integration-test:
+    executor: go
+    steps:
+      - checkout
+      - test
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - integration-test:
+          context: org-global
