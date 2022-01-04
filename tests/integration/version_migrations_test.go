@@ -99,7 +99,7 @@ func waitForPostgresReady(config *pgx.ConnConfig) bool {
 	return connected
 }
 
-func createDatabaseContainer(t *testing.T, ctx context.Context, version string, database string, username string, password string) (string, int, error) {
+func createDatabaseContainer(t *testing.T, ctx context.Context, image string, database string, username string, password string) (string, int, error) {
 	postgresPort := 5432
 
 	docker, err := NewDockerClient()
@@ -115,7 +115,7 @@ func createDatabaseContainer(t *testing.T, ctx context.Context, version string, 
 	container, err := docker.runContainer(
 		ctx,
 		&ContainerConfig{
-			image: fmt.Sprintf("postgres:%s", version),
+			image: image,
 			ports: []*PortMapping{
 				{
 					HostPort:      fmt.Sprintf("%d", hostPort),
@@ -258,8 +258,8 @@ func TestVersionMigration(t *testing.T) {
 	}{
 		{
 			name:   "9.5To9.6",
-			source: "9.5",
-			target: "9.6",
+			source: "postgres:9.5",
+			target: "postgres:9.6",
 		},
 	}
 
