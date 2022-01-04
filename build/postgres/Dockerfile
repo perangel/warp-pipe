@@ -12,6 +12,7 @@ RUN cd /opt && \
     USE_PGXS=1 make install
 
 COPY build/postgres/postgresql.conf /etc/postgres/postgresql.conf
+COPY build/postgres/pg_hba.conf /etc/postgres/pg_hba.conf
 RUN chown -R postgres:postgres /etc/postgres
 
-CMD ["postgres", "-c", "config_file=/etc/postgres/postgresql.conf"]
+CMD ["postgres", "-cconfig_file=/etc/postgres/postgresql.conf", "-chba_file=/etc/postgres/pg_hba.conf"]
