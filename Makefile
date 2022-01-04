@@ -1,3 +1,5 @@
+VERSION ?= $(shell git rev-parse --short HEAD)
+
 .PHONY: all
 all:
 	@cd cmd/warp-pipe && go build -v
@@ -16,4 +18,5 @@ demo-clean:
 
 .PHONY: integration-test
 integration-test:
-	go test -v ./tests/integration -integration
+	docker build -f ./build/postgres/Dockerfile -t psql-int-test:$(VERSION) .
+	BUILD_SHA=$(VERSION) go test -v ./tests/integration -integration
