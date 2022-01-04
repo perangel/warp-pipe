@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	warppipe "github.com/perangel/warp-pipe"
@@ -250,6 +252,8 @@ func deleteTestData(t *testing.T, config pgx.ConnConfig, nRows int, wg *sync.Wai
 }
 
 func TestVersionMigration(t *testing.T) {
+	buildSha := os.Getenv("BUILD_SHA")
+	assert.NotEmpty(t, buildSha)
 
 	testCases := []struct {
 		name   string
@@ -260,6 +264,11 @@ func TestVersionMigration(t *testing.T) {
 			name:   "9.5To9.6",
 			source: "postgres:9.5",
 			target: "postgres:9.6",
+		},
+		{
+			name:   "custom11To11",
+			source: "psql-int-test:" + buildSha,
+			target: "postgres:11-alpine",
 		},
 	}
 
