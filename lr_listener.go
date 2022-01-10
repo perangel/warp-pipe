@@ -173,10 +173,13 @@ func (l *LogicalReplicationListener) ListenForChanges(ctx context.Context) (chan
 				l.errCh <- err
 			}
 
-			if msg != nil && msg.WalMessage != nil {
-				l.processMessage(msg)
-			} else {
+			if msg == nil {
+				log.Warn("received nil replication message")
 				continue
+			}
+
+			if msg.WalMessage != nil {
+				l.processMessage(msg)
 			}
 
 			if msg.ServerHeartbeat != nil {
