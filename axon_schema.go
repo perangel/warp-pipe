@@ -2,6 +2,7 @@ package warppipe
 
 import (
 	"fmt"
+	"regexp"
 
 	"strconv"
 	"strings"
@@ -23,6 +24,21 @@ var orphanSequences []string
 // for each table, maps column names to their postgres data types
 var columnTypes = (map[string]map[string]string{})
 
+func parseSemver(version string) (major, minor int, err error) {
+	reg, err := regexp.Compile(`^(\d+)\.(\d+)`)
+	if err != nil {
+		return
+	}
+	parsedVersion := reg.FindStringSubmatch(version)
+
+	major, err = strconv.Atoi(parsedVersion[1])
+	if err != nil {
+		return
+	}
+	minor, err = strconv.Atoi(parsedVersion[2])
+	return
+}
+
 func (a *Axon) checkTargetVersion(conn *sqlx.DB) error {
 	var serverVersion string
 	err := conn.Get(&serverVersion, "SHOW server_version;")
@@ -30,13 +46,7 @@ func (a *Axon) checkTargetVersion(conn *sqlx.DB) error {
 		return err
 	}
 
-	version := strings.Split(serverVersion, ".")
-	// TODO: More thorough version checks
-	major, err := strconv.Atoi(version[0])
-	if err != nil {
-		return err
-	}
-	minor, err := strconv.Atoi(version[1])
+	major, minor, err := parseSemver(serverVersion)
 	if err != nil {
 		return err
 	}

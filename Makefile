@@ -16,6 +16,10 @@ demo:
 demo-clean:
 	docker-compose -f docker-compose.demo.yml rm -f -s
 
+.PHONY: test
+test:
+	go test -v ./...
+
 .PHONY: integration-test
 integration-test:
 	docker build -f ./build/postgres/Dockerfile -t psql-int-test:$(VERSION) .
