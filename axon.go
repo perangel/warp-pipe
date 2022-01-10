@@ -70,6 +70,7 @@ func (a *Axon) Run() error {
 	if err != nil {
 		return fmt.Errorf("unable to connect to source database: %w", err)
 	}
+	defer sourceDBConn.Close()
 
 	targetDBConn, err := sqlx.Open("postgres", getDBConnString(
 		a.Config.TargetDBHost,
@@ -81,6 +82,7 @@ func (a *Axon) Run() error {
 	if err != nil {
 		return fmt.Errorf("unable to connect to target database: %w", err)
 	}
+	defer targetDBConn.Close()
 
 	err = a.checkTargetVersion(targetDBConn)
 	if err != nil {
@@ -145,18 +147,16 @@ func (a *Axon) Run() error {
 	if err != nil {
 		return fmt.Errorf("failed to dial the listener: %w", err)
 	}
+	defer wp.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	changes, errs := wp.ListenForChanges(ctx)
 
 	for {
 		select {
 		case <-a.shutdownCh:
 			a.Logger.Error("shutting down...")
-			cancel()
-			wp.Close()
-			sourceDBConn.Close()
-			targetDBConn.Close()
 			return nil
 		case err := <-errs:
 			return fmt.Errorf("listener received an error: %w", err)
