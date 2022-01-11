@@ -21,7 +21,7 @@ var (
 
 // NewDockerClient returns a docker client
 func NewDockerClient() (*dockerClient, error) {
-	cli, err := client.NewEnvClient()
+	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create docker client: %w", err)
 	}
