@@ -111,7 +111,10 @@ func (d dockerClient) createNewContainer(ctx context.Context, image string, port
 		}
 		defer out.Close()
 
-		io.Copy(os.Stdout, out)
+		_, err = io.Copy(os.Stdout, out)
+		if err != nil {
+			return nil, err
+		}
 
 		resp, err = d.ContainerCreate(ctx, containerConfig, hostConfig, networkingConfig, nil, "")
 		if err != nil {

@@ -270,7 +270,10 @@ func (l *LogicalReplicationListener) clearReplicationSlots() error {
 
 	for rows.Next() {
 		var slotName string
-		rows.Scan(&slotName)
+		err := rows.Scan(&slotName)
+		if err != nil {
+			return err
+		}
 
 		if !strings.HasPrefix(slotName, replicationSlotNamePrefix) {
 			continue
