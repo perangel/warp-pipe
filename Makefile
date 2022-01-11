@@ -16,6 +16,10 @@ demo:
 demo-clean:
 	docker-compose -f docker-compose.demo.yml rm -f -s
 
+.PHONY: lint
+lint:
+	@go run vendor/github.com/golangci/golangci-lint/cmd/golangci-lint/main.go -v run
+
 .PHONY: test
 test:
 	go test -v ./...
