@@ -143,20 +143,3 @@ func (d dockerClient) removeContainer(ctx context.Context, id string) error {
 	fmt.Printf("container %s is removed\n", id)
 	return nil
 }
-
-func (d dockerClient) printLogs(ctx context.Context, id string) error {
-	out, err := d.ContainerLogs(ctx, id, types.ContainerLogsOptions{
-		ShowStdout: true,
-		ShowStderr: true,
-		Follow:     true,
-		Timestamps: true,
-	})
-	if err != nil {
-		return err
-	}
-
-	io.Copy(os.Stdout, out)
-	defer out.Close()
-
-	return nil
-}

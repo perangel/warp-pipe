@@ -32,9 +32,6 @@ const (
 	// Create an index for warp_pipe.changesets(action)
 	createIndexChangesetsActionSQL = `CREATE INDEX IF NOT EXISTS changesets_action_idx ON warp_pipe.changesets (action)`
 
-	// Create an index for warp_pipe.changesets(schema_name)
-	createIndexChangesetsSchemaNameSQL = `CREATE INDEX IF NOT EXISTS changesets_schema_name_idx ON warp_pipe.changesets (schema_name)`
-
 	// Create an index for warp_pipe.changesets(table_name)
 	createIndexChangesetsTableNameSQL = `CREATE INDEX IF NOT EXISTS changesets_table_name_idx ON warp_pipe.changesets (table_name)`
 
