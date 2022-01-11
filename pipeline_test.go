@@ -93,7 +93,7 @@ func TestPipeline(t *testing.T) {
 		}
 	}()
 
-	_ = <-time.After(300 * time.Millisecond)
+	<-time.After(300 * time.Millisecond)
 	assert.Equal(t, 1, len(results))
 	assert.Equal(t, 1, len(results[0].NewValues))
 	assert.Equal(t, "USERS", results[0].Table)

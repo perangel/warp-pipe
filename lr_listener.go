@@ -207,11 +207,13 @@ func (l *LogicalReplicationListener) Close() error {
 }
 
 func (l *LogicalReplicationListener) startHeartBeat(ctx context.Context) {
+	ticker := time.NewTicker(time.Duration(l.connHeartbeatIntervalSeconds) * time.Second)
 	for {
 		select {
 		case <-ctx.Done():
+			ticker.Stop()
 			return
-		case <-time.Tick(time.Duration(l.connHeartbeatIntervalSeconds) * time.Second):
+		case <-ticker.C:
 			l.logger.Info("sending heartbeat")
 			l.sendStandbyStatus()
 		}
