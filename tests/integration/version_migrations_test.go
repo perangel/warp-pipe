@@ -101,9 +101,23 @@ func waitForPostgresReady(config *pgx.ConnConfig) bool {
 	return connected
 }
 
-func createDatabaseContainer(t *testing.T, ctx context.Context, image string, database string, username string, password string) (string, int, error) {
+func createPSQLDatabaseContainer(t *testing.T, ctx context.Context, image string, database string, username string, password string) (string, int, error) {
 	postgresPort := 5432
+	env := []string{
+		fmt.Sprintf("POSTGRES_DB=%s", database),
+		fmt.Sprintf("POSTGRES_USER=%s", username),
+		fmt.Sprintf("POSTGRES_PASSWORD=%s", password),
+	}
+	cmd := []string{
+		"postgres",
+		"-cwal_level=logical",
+		"-cmax_replication_slots=1",
+		"-cmax_wal_senders=1",
+	}
+	return createContainer(t, ctx, image, postgresPort, env, cmd)
+}
 
+func createContainer(t *testing.T, ctx context.Context, image string, port int, env, cmd []string) (string, int, error) {
 	docker, err := NewDockerClient()
 	if err != nil {
 		return "", 0, err
@@ -121,20 +135,11 @@ func createDatabaseContainer(t *testing.T, ctx context.Context, image string, da
 			ports: []*PortMapping{
 				{
 					HostPort:      fmt.Sprintf("%d", hostPort),
-					ContainerPort: fmt.Sprintf("%d", postgresPort),
+					ContainerPort: fmt.Sprintf("%d", port),
 				},
 			},
-			env: []string{
-				fmt.Sprintf("POSTGRES_DB=%s", database),
-				fmt.Sprintf("POSTGRES_USER=%s", username),
-				fmt.Sprintf("POSTGRES_PASSWORD=%s", password),
-			},
-			cmd: []string{
-				"postgres",
-				"-cwal_level=logical",
-				"-cmax_replication_slots=1",
-				"-cmax_wal_senders=1",
-			},
+			env: env,
+			cmd: cmd,
 		})
 	if err != nil {
 		return "", 0, err
@@ -282,7 +287,7 @@ func TestVersionMigration(t *testing.T) {
 			ctx := context.Background()
 
 			// bring up source and target database containers
-			_, srcPort, err := createDatabaseContainer(t, ctx, tc.source, dbUser, dbPassword, dbName)
+			_, srcPort, err := createPSQLDatabaseContainer(t, ctx, tc.source, dbUser, dbPassword, dbName)
 			require.NoError(t, err)
 			srcDBConfig := pgx.ConnConfig{
 				Host:     "127.0.0.1",
@@ -294,7 +299,7 @@ func TestVersionMigration(t *testing.T) {
 			err = setupTestSchema(srcDBConfig)
 			require.NoError(t, err)
 
-			_, targetPort, err := createDatabaseContainer(t, ctx, tc.target, dbUser, dbPassword, dbName)
+			_, targetPort, err := createPSQLDatabaseContainer(t, ctx, tc.target, dbUser, dbPassword, dbName)
 			require.NoError(t, err)
 			targetDBConfig := pgx.ConnConfig{
 				Host:     "127.0.0.1",
