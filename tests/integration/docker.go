@@ -21,7 +21,7 @@ var (
 
 // NewDockerClient returns a docker client
 func NewDockerClient() (*dockerClient, error) {
-	cli, err := client.NewEnvClient()
+	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create docker client: %w", err)
 	}
@@ -111,7 +111,10 @@ func (d dockerClient) createNewContainer(ctx context.Context, image string, port
 		}
 		defer out.Close()
 
-		io.Copy(os.Stdout, out)
+		_, err = io.Copy(os.Stdout, out)
+		if err != nil {
+			return nil, err
+		}
 
 		resp, err = d.ContainerCreate(ctx, containerConfig, hostConfig, networkingConfig, nil, "")
 		if err != nil {
@@ -141,22 +144,5 @@ func (d dockerClient) removeContainer(ctx context.Context, id string) error {
 		return fmt.Errorf("failed removing container: %w", err)
 	}
 	fmt.Printf("container %s is removed\n", id)
-	return nil
-}
-
-func (d dockerClient) printLogs(ctx context.Context, id string) error {
-	out, err := d.ContainerLogs(ctx, id, types.ContainerLogsOptions{
-		ShowStdout: true,
-		ShowStderr: true,
-		Follow:     true,
-		Timestamps: true,
-	})
-	if err != nil {
-		return err
-	}
-
-	io.Copy(os.Stdout, out)
-	defer out.Close()
-
 	return nil
 }

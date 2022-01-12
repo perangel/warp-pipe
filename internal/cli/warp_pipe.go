@@ -115,13 +115,11 @@ var WarpPipeCmd = &cobra.Command{
 
 		shutdownCh := make(chan os.Signal, 1)
 		signal.Notify(shutdownCh, os.Interrupt, syscall.SIGTERM)
-		for {
-			<-shutdownCh
-			cancel()
-			if err := wp.Close(); err != nil {
-				return err
-			}
-			return nil
+		<-shutdownCh // Wait for signal
+		cancel()
+		if err := wp.Close(); err != nil {
+			return err
 		}
+		return nil
 	},
 }

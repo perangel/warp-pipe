@@ -14,7 +14,6 @@ var (
 	setupDBSchemas         []string
 	setupDBIgnoreTables    []string
 	setupDBWhitelistTables []string
-	setupDBReplicaIdentity string
 )
 
 var setupDBCmd = &cobra.Command{

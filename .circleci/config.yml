@@ -1,0 +1,27 @@
+version: 2.1
+
+executors:
+  golang:
+    docker:
+      - image: cimg/go:1.17
+
+commands:
+  lint:
+    steps:
+      - run:
+          name: Run linter
+          command: make lint
+
+jobs:
+  lint:
+    executor: golang
+    steps:
+      - checkout
+      - lint
+
+workflows:
+  version: 2
+  ci:
+    jobs:
+      - lint:
+          context: org-global

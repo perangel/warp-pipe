@@ -186,7 +186,7 @@ func insertTestData(t *testing.T, config pgx.ConnConfig, nRowsX3 int, wg *sync.W
 
 	conn, err := pgx.Connect(config)
 	if err != nil {
-		t.Fatalf("%s: could not connected to source database to insert: %v", t.Name(), err)
+		t.Errorf("%s: could not connected to source database to insert: %v", t.Name(), err)
 		return
 	}
 	defer conn.Close()
@@ -201,7 +201,7 @@ func insertTestData(t *testing.T, config pgx.ConnConfig, nRowsX3 int, wg *sync.W
 		for _, row := range rows {
 			_, err = conn.Exec(insertSQL, row.text, row.date, row.boolean, row.json, row.jsonb, row.array, row.bytea)
 			if err != nil {
-				t.Fatalf("%s: Could not insert row in source database: %v", t.Name(), err)
+				t.Errorf("%s: Could not insert row in source database: %v", t.Name(), err)
 			}
 		}
 	}
@@ -212,7 +212,7 @@ func updateTestData(t *testing.T, config pgx.ConnConfig, nRows int, wg *sync.Wai
 
 	conn, err := pgx.Connect(config)
 	if err != nil {
-		t.Fatalf("%s: could not connected to source database to update: %v", t.Name(), err)
+		t.Errorf("%s: could not connected to source database to update: %v", t.Name(), err)
 		return
 	}
 	defer conn.Close()
@@ -225,7 +225,7 @@ func updateTestData(t *testing.T, config pgx.ConnConfig, nRows int, wg *sync.Wai
 	for i := 0; i < nRows; i++ {
 		_, err = conn.Exec(updateSQL)
 		if err != nil {
-			t.Fatalf("%s: Could not update row in source database: %v", t.Name(), err)
+			t.Errorf("%s: Could not update row in source database: %v", t.Name(), err)
 		}
 	}
 }
@@ -235,7 +235,7 @@ func deleteTestData(t *testing.T, config pgx.ConnConfig, nRows int, wg *sync.Wai
 
 	conn, err := pgx.Connect(config)
 	if err != nil {
-		t.Fatalf("%s: Could not connect to source db to delete data", t.Name())
+		t.Errorf("%s: Could not connect to source db to delete data", t.Name())
 		return
 	}
 	defer conn.Close()
@@ -246,7 +246,7 @@ func deleteTestData(t *testing.T, config pgx.ConnConfig, nRows int, wg *sync.Wai
 	for i := 0; i < nRows; i++ {
 		_, err = conn.Exec(deleteSQL)
 		if err != nil {
-			t.Fatalf("%s: Could not delete row in source database: %v", t.Name(), err)
+			t.Errorf("%s: Could not delete row in source database: %v", t.Name(), err)
 		}
 	}
 }
