@@ -1,4 +1,4 @@
-FROM golang:1.14-alpine3.11 AS build
+FROM golang:1.17-alpine3.15 AS build
 
 COPY . /go/src/github.com/perangel/warp-pipe
 COPY build/demo-service/ /go/src/github.com/perangel/demo-service
