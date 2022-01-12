@@ -2,6 +2,7 @@ package warppipe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/jackc/pgx"
 	"github.com/jmoiron/sqlx"
-	"github.com/kelseyhightower/envconfig"
 	"github.com/perangel/warp-pipe/db"
 	"github.com/perangel/warp-pipe/internal/store"
 	"github.com/sirupsen/logrus"
@@ -34,16 +34,6 @@ type Axon struct {
 	Config     *AxonConfig
 	Logger     *logrus.Logger
 	shutdownCh chan os.Signal
-}
-
-// NewAxonConfigFromEnv loads the Axon configuration from environment variables.
-func NewAxonConfigFromEnv() (*AxonConfig, error) {
-	config := AxonConfig{}
-	err := envconfig.Process("axon", &config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to process environment config: %w", err)
-	}
-	return &config, nil
 }
 
 // Run the Axon worker.
@@ -89,19 +79,11 @@ func (a *Axon) Run() error {
 		return fmt.Errorf("unable to check target database version: %w", err)
 	}
 
-	// TODO: (1) add support for selecting the warp-pipe mode
-	// TODO: (2) only print the source stats if that is audit
-	sourceCount, err := a.printStats(sourceDBConn, "source")
+	inSync, err := a.precheckIfInSync(sourceDBConn, targetDBConn)
 	if err != nil {
-		return fmt.Errorf("unable to get source db stats: %w", err)
+		return err
 	}
-	targetCount, err := a.printStats(targetDBConn, "target")
-	if err != nil {
-		return fmt.Errorf("unable to get target db stats: %w", err)
-	}
-
-	if sourceCount == targetCount {
-		a.Logger.Info("changeset counts match")
+	if inSync {
 		return nil
 	}
 
@@ -126,9 +108,10 @@ func (a *Axon) Run() error {
 		return fmt.Errorf("unable to load column data types: %w", err)
 	}
 
-	// Create a notify listener and start from the configured changeset id.
-	listener := NewNotifyListener(StartFromOffset(a.Config.StartFromOffset),
-		NotifyLogger(a.Logger))
+	listener, err := a.newListener()
+	if err != nil {
+		return err
+	}
 
 	connConfig := pgx.ConnConfig{
 		Host:     a.Config.SourceDBHost,
@@ -161,11 +144,9 @@ func (a *Axon) Run() error {
 		case err := <-errs:
 			return fmt.Errorf("listener received an error: %w", err)
 		case change := <-changes:
-
-			// Update the column types since it is not available when using notify listener
-			err = setColumnTypes(change)
+			err = a.prepareChange(change)
 			if err != nil {
-				return fmt.Errorf("could not set column type for change - %s: %w", change, err)
+				return err
 			}
 
 			// Override the schema if a target database schema has been configured.
@@ -178,19 +159,88 @@ func (a *Axon) Run() error {
 				return fmt.Errorf("failed to apply changeset: %s, %w", change, processErr)
 			}
 
-			if a.Config.ShutdownAfterLastChangeset {
-				isLatest, err := wp.IsLatestChangeSet(change.ID)
-				if err != nil {
-					return fmt.Errorf("failed to determine if the sync is complete: %w", err)
-				}
-				if isLatest {
-					a.Logger.
-						WithField("component", "warp_pipe").
-						Info("sync is complete. shutting down...")
-					a.Shutdown()
-				}
+			inSync, err := a.shutdownAfterInSync(wp, change)
+			if err != nil {
+				return err
+			}
+			if inSync {
+				a.Logger.
+					WithField("component", "warp_pipe").
+					Info("sync is complete. shutting down...")
+				a.Shutdown()
 			}
 		}
+	}
+}
+
+func (a *Axon) precheckIfInSync(sourceDBConn, targetDBConn *sqlx.DB) (bool, error) {
+	// TODO: only print the source stats if that is audit
+	switch a.Config.ListenerMode {
+	case ListenerModeNotify:
+		sourceCount, err := a.printStats(sourceDBConn, "source")
+		if err != nil {
+			return false, fmt.Errorf("unable to get source db stats: %w", err)
+		}
+		targetCount, err := a.printStats(targetDBConn, "target")
+		if err != nil {
+			return false, fmt.Errorf("unable to get target db stats: %w", err)
+		}
+		if sourceCount == targetCount {
+			a.Logger.Info("changeset counts match")
+			return true, nil
+		}
+	case ListenerModeLogicalReplication:
+		return false, errors.New("NOT IMPLEMENTED") // TODO: implement
+	}
+	return false, nil
+}
+
+func (a *Axon) newListener() (Listener, error) {
+	switch a.Config.ListenerMode {
+	case ListenerModeNotify:
+		return NewNotifyListener(
+			StartFromOffset(a.Config.StartFromOffset),
+			NotifyLogger(a.Logger),
+		), nil
+	case ListenerModeLogicalReplication:
+		return NewLogicalReplicationListener(
+			StartFromLSN(a.Config.StartFromLSN),
+			LRLogger(a.Logger),
+		), nil
+	default:
+		return nil, errors.New("invalid listener mode: " + a.Config.ListenerMode)
+	}
+}
+
+func (a *Axon) prepareChange(change *Changeset) error {
+	switch a.Config.ListenerMode {
+	case ListenerModeNotify:
+		// Update the column types since it is not available when using notify listener
+		err := setColumnTypes(change)
+		if err != nil {
+			return fmt.Errorf("could not set column type for change - %s: %w", change, err)
+		}
+	case ListenerModeLogicalReplication:
+		return nil
+	}
+	return nil
+}
+
+func (a *Axon) shutdownAfterInSync(wp *WarpPipe, change *Changeset) (bool, error) {
+	if !a.Config.ShutdownAfterLastChangeset {
+		return false, nil
+	}
+	switch a.Config.ListenerMode {
+	case ListenerModeNotify:
+		isLatest, err := wp.IsLatestChangeSet(change.ID)
+		if err != nil {
+			return false, fmt.Errorf("failed to determine if the sync is complete: %w", err)
+		}
+		return isLatest, nil
+	case ListenerModeLogicalReplication:
+		return false, errors.New("NOT IMPLEMENTED") // TODO: implement
+	default:
+		return false, fmt.Errorf("unknown listener mode: %s", a.Config.ListenerMode)
 	}
 }
 
@@ -228,66 +278,73 @@ func (a *Axon) Verify(schemas, includeTables, excludeTables []string) error {
 	defer sourceDBConn.Close()
 	defer targetDBConn.Close()
 
-	err = db.PrepareForDataIntegrityChecks(sourceDBConn)
-	if err != nil {
-		return fmt.Errorf("unable to prepare source database for Integrity checks: %w", err)
-	}
-
-	err = db.PrepareForDataIntegrityChecks(targetDBConn)
-	if err != nil {
-		return fmt.Errorf("unable to prepare target database for Integrity checks: %w", err)
-	}
-
-	tables, err := db.GenerateTablesList(sourceDBConn, schemas, includeTables, excludeTables)
-	if err != nil {
-		return fmt.Errorf("unable to generate the list of source tables to check: %w", err)
-	}
-
-	for _, table := range tables {
-
-		a.Logger.
-			WithField("table", fmt.Sprintf(`"%s"."%s"`, table.Schema, table.Name)).
-			Info("Verifying checksum")
-
-		if len(table.PKeyFields) < 1 {
-			return fmt.Errorf(`table "%s"."%s" has no primary key, cannot guarantee checksum match`, table.Schema, table.Name)
-		}
-
-		orderByClause := ""
-		pkColumns := make([]string, len(table.PKeyFields))
-		for position, column := range table.PKeyFields {
-			pkColumns[position-1] = fmt.Sprintf(`"%s"."%s"."%s"`, table.Schema, table.Name, column)
-		}
-		orderByClause = fmt.Sprintf(`ORDER BY %s`, strings.Join(pkColumns, ","))
-
-		sql := fmt.Sprintf(
-			`SELECT pg_md5_hashagg(md5(CAST(("%s"."%s".*)AS TEXT))%s) FROM "%s"."%s"`,
-			table.Schema,
-			table.Name,
-			orderByClause,
-			table.Schema,
-			table.Name,
-		)
-
-		sourceChecksum := ""
-		row := sourceDBConn.QueryRow(sql)
-		err := row.Scan(&sourceChecksum)
+	switch a.Config.ListenerMode {
+	case ListenerModeNotify:
+		err = db.PrepareForDataIntegrityChecks(sourceDBConn)
 		if err != nil {
-			return fmt.Errorf("failed to scan the source checksum for table %s.%s: %w", table.Schema, table.Name, err)
+			return fmt.Errorf("unable to prepare source database for Integrity checks: %w", err)
 		}
 
-		targetChecksum := ""
-		row = targetDBConn.QueryRow(sql)
-		err = row.Scan(&targetChecksum)
+		err = db.PrepareForDataIntegrityChecks(targetDBConn)
 		if err != nil {
-			return fmt.Errorf("failed to scan the target checksum for table %s.%s: %w", table.Schema, table.Name, err)
+			return fmt.Errorf("unable to prepare target database for Integrity checks: %w", err)
 		}
 
-		if sourceChecksum != targetChecksum {
-
-			return fmt.Errorf("checksums differ, source: %s target: %s", sourceChecksum, targetChecksum)
+		tables, err := db.GenerateTablesList(sourceDBConn, schemas, includeTables, excludeTables)
+		if err != nil {
+			return fmt.Errorf("unable to generate the list of source tables to check: %w", err)
 		}
+
+		for _, table := range tables {
+
+			a.Logger.
+				WithField("table", fmt.Sprintf(`"%s"."%s"`, table.Schema, table.Name)).
+				Info("Verifying checksum")
+
+			if len(table.PKeyFields) < 1 {
+				return fmt.Errorf(`table "%s"."%s" has no primary key, cannot guarantee checksum match`, table.Schema, table.Name)
+			}
+
+			orderByClause := ""
+			pkColumns := make([]string, len(table.PKeyFields))
+			for position, column := range table.PKeyFields {
+				pkColumns[position-1] = fmt.Sprintf(`"%s"."%s"."%s"`, table.Schema, table.Name, column)
+			}
+			orderByClause = fmt.Sprintf(`ORDER BY %s`, strings.Join(pkColumns, ","))
+
+			sql := fmt.Sprintf(
+				`SELECT pg_md5_hashagg(md5(CAST(("%s"."%s".*)AS TEXT))%s) FROM "%s"."%s"`,
+				table.Schema,
+				table.Name,
+				orderByClause,
+				table.Schema,
+				table.Name,
+			)
+
+			sourceChecksum := ""
+			row := sourceDBConn.QueryRow(sql)
+			err := row.Scan(&sourceChecksum)
+			if err != nil {
+				return fmt.Errorf("failed to scan the source checksum for table %s.%s: %w", table.Schema, table.Name, err)
+			}
+
+			targetChecksum := ""
+			row = targetDBConn.QueryRow(sql)
+			err = row.Scan(&targetChecksum)
+			if err != nil {
+				return fmt.Errorf("failed to scan the target checksum for table %s.%s: %w", table.Schema, table.Name, err)
+			}
+
+			if sourceChecksum != targetChecksum {
+
+				return fmt.Errorf("checksums differ, source: %s target: %s", sourceChecksum, targetChecksum)
+			}
+		}
+	case ListenerModeLogicalReplication:
+		// TODO: implement
+		return fmt.Errorf("NOT IMPLEMENTED")
 	}
+
 	return nil
 }
 

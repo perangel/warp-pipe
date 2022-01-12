@@ -51,6 +51,13 @@ func HeartbeatInterval(seconds int) LROption {
 	}
 }
 
+// LRLogger is an option for setting the logger
+func LRLogger(logger *log.Logger) LROption {
+	return func(l *LogicalReplicationListener) {
+		l.logger = logger.WithFields(log.Fields{"component": "listener"})
+	}
+}
+
 // LogicalReplicationListener is a Listener that uses logical replication slots
 // to listen for changesets.
 type LogicalReplicationListener struct {

@@ -256,19 +256,22 @@ func TestVersionMigration(t *testing.T) {
 	assert.NotEmpty(t, buildSha)
 
 	testCases := []struct {
-		name   string
-		source string
-		target string
+		name         string
+		source       string
+		target       string
+		listenerMode string
 	}{
 		{
-			name:   "9.5To9.6",
-			source: "postgres:9.5",
-			target: "postgres:9.6",
+			name:         "9.5To9.6",
+			source:       "postgres:9.5",
+			target:       "postgres:9.6",
+			listenerMode: warppipe.ListenerModeNotify,
 		},
 		{
-			name:   "custom11To11",
-			source: "psql-int-test:" + buildSha,
-			target: "postgres:11-alpine",
+			name:         "custom11To11",
+			source:       "psql-int-test:" + buildSha,
+			target:       "postgres:11-alpine",
+			listenerMode: warppipe.ListenerModeNotify,
 		},
 	}
 
@@ -307,19 +310,22 @@ func TestVersionMigration(t *testing.T) {
 			includeTables := make([]string, 0)
 			excludeTables := make([]string, 0)
 
-			// Setup WP on source
+			// Create connections to source, target
 			wpConn, err := pgx.Connect(srcDBConfig)
 			require.NoError(t, err)
 
-			err = db.Prepare(wpConn, []string{"public"}, []string{"testTable"}, []string{})
-			require.NoError(t, err)
-
-			// Setup WP on target
 			targetConn, err := pgx.Connect(targetDBConfig)
 			require.NoError(t, err)
 
-			err = db.Prepare(targetConn, []string{"public"}, []string{"testTable"}, []string{})
-			require.NoError(t, err)
+			// Setup mode-specifics on source, target
+			switch tc.listenerMode {
+			case warppipe.ListenerModeNotify:
+				err = db.Prepare(wpConn, []string{"public"}, []string{"testTable"}, []string{})
+				require.NoError(t, err)
+
+				err = db.Prepare(targetConn, []string{"public"}, []string{"testTable"}, []string{})
+				require.NoError(t, err)
+			}
 
 			// write, update, delete to produce change sets
 			var insertsWG, updatesWG, deletesWG sync.WaitGroup
@@ -354,6 +360,7 @@ func TestVersionMigration(t *testing.T) {
 				TargetDBSchema:             "public",
 				ShutdownAfterLastChangeset: true,
 				FailOnDuplicate:            true,
+				ListenerMode:               tc.listenerMode,
 			}
 
 			axon := warppipe.Axon{Config: &axonCfg}
@@ -375,23 +382,30 @@ func TestVersionMigration(t *testing.T) {
 			}
 			insertsWG.Wait()
 
-			t.Log("second pass sync. starting from count of Changesets in target, catching any stragglers")
-			row, err := targetConn.Query("SELECT count(id) from warp_pipe.changesets")
-			require.True(t, row.Next())
-			var count int64
-			row.Scan(&count)
-			t.Logf("count of changesets in target: %d", count)
-
-			axon.Config.StartFromOffset = count
+			switch tc.listenerMode {
+			case warppipe.ListenerModeNotify:
+				t.Log("second pass sync. starting from count of Changesets in target, catching any stragglers")
+				row, err := targetConn.Query("SELECT count(id) from warp_pipe.changesets")
+				assert.NoError(t, err)
+				require.True(t, row.Next())
+				var count int64
+				err = row.Scan(&count)
+				assert.NoError(t, err)
+				t.Logf("count of changesets in target: %d", count)
+				axon.Config.StartFromOffset = count
+			case warppipe.ListenerModeLogicalReplication:
+				// TODO: implement this
+			}
 
 			err = axon.Run()
 			require.NoError(t, err)
 
-			errVerify := axon.Verify(schemas, includeTables, excludeTables)
-			errVerifyChangesets := axon.VerifyChangesets(-1)
+			switch tc.listenerMode {
+			case warppipe.ListenerModeNotify:
+				require.NoError(t, axon.VerifyChangesets(-1))
+			}
 
-			require.NoError(t, errVerify)
-			require.NoError(t, errVerifyChangesets)
+			require.NoError(t, axon.Verify(schemas, includeTables, excludeTables))
 		})
 	}
 }
