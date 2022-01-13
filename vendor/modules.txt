@@ -136,8 +136,6 @@ github.com/go-critic/go-critic/checkers/internal/astwalk
 github.com/go-critic/go-critic/checkers/internal/lintutil
 github.com/go-critic/go-critic/checkers/rulesdata
 github.com/go-critic/go-critic/framework/linter
-# github.com/go-sql-driver/mysql v1.5.0
-## explicit; go 1.10
 # github.com/go-toolsmith/astcast v1.0.0
 ## explicit
 github.com/go-toolsmith/astcast
@@ -257,8 +255,6 @@ github.com/google/go-cmp/cmp/internal/value
 # github.com/gordonklaus/ineffassign v0.0.0-20210225214923-2e10b2664254
 ## explicit; go 1.14
 github.com/gordonklaus/ineffassign/pkg/ineffassign
-# github.com/gorilla/mux v1.8.0
-## explicit; go 1.12
 # github.com/gostaticanalysis/analysisutil v0.7.1
 ## explicit; go 1.16
 github.com/gostaticanalysis/analysisutil
@@ -329,8 +325,6 @@ github.com/kisielk/errcheck/errcheck
 ## explicit
 github.com/kisielk/gotool
 github.com/kisielk/gotool/internal/load
-# github.com/kr/text v0.2.0
-## explicit
 # github.com/kulti/thelper v0.4.0
 ## explicit; go 1.14
 github.com/kulti/thelper/pkg/analyzer
@@ -413,8 +407,6 @@ github.com/nbutton23/zxcvbn-go/match
 github.com/nbutton23/zxcvbn-go/matching
 github.com/nbutton23/zxcvbn-go/scoring
 github.com/nbutton23/zxcvbn-go/utils/math
-# github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e
-## explicit; go 1.12
 # github.com/nishanths/exhaustive v0.2.3
 ## explicit; go 1.14
 github.com/nishanths/exhaustive
@@ -727,8 +719,6 @@ google.golang.org/protobuf/types/descriptorpb
 google.golang.org/protobuf/types/known/anypb
 google.golang.org/protobuf/types/known/durationpb
 google.golang.org/protobuf/types/known/timestamppb
-# gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
-## explicit
 # gopkg.in/ini.v1 v1.63.2
 ## explicit
 gopkg.in/ini.v1

@@ -60,7 +60,7 @@ func TestReplicationConnect(t *testing.T) {
 		t.Run(tc.image, func(t *testing.T) {
 			t.Parallel()
 
-			_, srcPort, err := createDatabaseContainer(t, ctx, tc.image, dbUser, dbPassword, dbName)
+			_, srcPort, err := createPSQLDatabaseContainer(t, ctx, tc.image, dbUser, dbPassword, dbName)
 			require.NoError(t, err)
 			time.Sleep(10 * time.Second) // Wait for postgres to start
 

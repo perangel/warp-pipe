@@ -170,8 +170,8 @@ func GenerateTablesList(conn *pgx.Conn, schemas, includeTables, excludeTables []
 		}
 	} else {
 		for _, schema := range schemas {
-			rows, err := conn.Query(`
-		SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = $1`, schema,
+			rows, err := conn.Query(
+				`SELECT table_name FROM information_schema.tables WHERE table_schema = $1`, schema,
 			)
 			if err != nil {
 				return nil, err
