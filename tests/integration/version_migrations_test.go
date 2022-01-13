@@ -269,14 +269,16 @@ func TestVersionMigration(t *testing.T) {
 		},
 		{
 			name:         "custom11To11",
-			source:       "psql-int-test:" + buildSha,
+			source:       "psql-int-test:11-" + buildSha,
 			target:       "postgres:11-alpine",
 			listenerMode: warppipe.ListenerModeNotify,
 		},
 	}
 
 	for _, tc := range testCases {
+		tc := tc // capture range element, required for parallel
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := context.Background()
 
 			// bring up source and target database containers

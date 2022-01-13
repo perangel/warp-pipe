@@ -24,7 +24,10 @@ lint:
 test:
 	go test -v ./...
 
+.PHONY: build-psql-%
+build-psql-%:
+	docker build --quiet --build-arg PSQL_VERSION=$* -f ./build/postgres/Dockerfile -t psql-int-test:$*-$(VERSION) .
+
 .PHONY: integration-test
-integration-test:
-	docker build -f ./build/postgres/Dockerfile -t psql-int-test:$(VERSION) .
+integration-test: build-psql-9 build-psql-10 build-psql-11 build-psql-12
 	BUILD_SHA=$(VERSION) go test -v ./tests/integration -integration

@@ -1,4 +1,5 @@
-FROM postgres:11-alpine
+ARG PSQL_VERSION=12.6
+FROM postgres:$PSQL_VERSION-alpine
 
 RUN apk add --update git make gcc clang llvm musl-dev
 
