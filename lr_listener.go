@@ -173,10 +173,13 @@ func (l *LogicalReplicationListener) ListenForChanges(ctx context.Context) (chan
 				l.errCh <- err
 			}
 
-			if msg != nil && msg.WalMessage != nil {
-				l.processMessage(msg)
-			} else {
+			if msg == nil {
+				log.Warn("received nil replication message")
 				continue
+			}
+
+			if msg.WalMessage != nil {
+				l.processMessage(msg)
 			}
 
 			if msg.ServerHeartbeat != nil {
@@ -227,7 +230,21 @@ func (l *LogicalReplicationListener) processMessage(msg *pgx.ReplicationMessage)
 	if err != nil {
 		l.logger.WithError(err).Error("failed to parse wal2json message")
 		l.errCh <- fmt.Errorf("failed to parse wal2json: %v", err)
+		return
 	}
+
+	lsn, err := pgx.ParseLSN(w2jmsg.NextLSN)
+	if err != nil {
+		l.logger.WithError(err).Error("failed to parse LSN from WAL message")
+		l.errCh <- fmt.Errorf("failed to parse LSN from wal2json message: %v", err)
+		return
+	}
+	if lsn <= l.replLSN {
+		l.logger.Errorf("received WAL with LSN %v, which is not greater than last received LSN %v", lsn, l.replLSN)
+		l.errCh <- fmt.Errorf("received WAL with LSN %v, which is not greater than last received LSN %v", lsn, l.replLSN)
+		return
+	}
+	l.replLSN = lsn
 
 	for _, change := range w2jmsg.Changes {
 		cs := &Changeset{
